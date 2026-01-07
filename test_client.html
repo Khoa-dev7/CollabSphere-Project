@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Chat CollabSphere</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        #messages { list-style-type: none; margin: 0; padding: 0; }
+        #messages li { padding: 5px 10px; margin-bottom: 5px; background: #eee; border-radius: 5px; }
+        form { margin-top: 20px; }
+        input { padding: 10px; width: 300px; }
+        button { padding: 10px 20px; background: blue; color: white; border: none; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h2>🚀 Test Chat Realtime</h2>
+    <p>Trạng thái: <span id="status" style="color:red">Đang kết nối...</span></p>
+    
+    <ul id="messages"></ul>
+
+    <form id="form" action="">
+        <input id="input" autocomplete="off" placeholder="Nhập tin nhắn..." /><button>Gửi</button>
+    </form>
+
+    <script>
+        // 1. Kết nối đến Server Python của bạn (cổng 5000)
+        var socket = io('http://localhost:5000');
+
+        var statusLabel = document.getElementById('status');
+        var messages = document.getElementById('messages');
+        var form = document.getElementById('form');
+        var input = document.getElementById('input');
+
+        // Khi kết nối thành công
+        socket.on('connect', function() {
+            statusLabel.innerText = "✅ Đã kết nối thành công!";
+            statusLabel.style.color = "green";
+            console.log("Connected to server");
+        });
+
+        // Khi nhận được tin nhắn từ Server (do người khác gửi)
+        socket.on('receive_message', function(msg) {
+            var item = document.createElement('li');
+            item.textContent = "📩 " + msg;
+            messages.appendChild(item);
+            window.scrollTo(0, document.body.scrollHeight);
+        });
+
+        // Gửi tin nhắn đi
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            if (input.value) {
+                // Gửi sự kiện 'chat_message' lên server
+                socket.emit('chat_message', input.value);
+                input.value = '';
+            }
+        });
+    </script>
+</body>
+</html>

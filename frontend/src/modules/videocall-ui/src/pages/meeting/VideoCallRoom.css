@@ -1,0 +1,44 @@
+.meeting-container {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+}
+
+.video-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 12px;
+  padding: 16px;
+}
+
+.video-tile {
+  background: #1f1f1f;
+  border-radius: 10px;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.video-placeholder {
+  font-size: 48px;
+}
+
+.username {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  color: white;
+  font-size: 14px;
+}
+
+.control-bar {
+  height: 80px;
+  background: #111;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+}

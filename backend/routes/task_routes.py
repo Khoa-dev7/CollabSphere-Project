@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from models import db, Task, TaskColumn, Attachment, UserRole
 from middleware import token_required, role_required
-from utils.file_manager import save_file
+from utils.file_manager import save_file, delete_physical_file
 
 task_bp = Blueprint('task', __name__)
 
@@ -63,3 +63,44 @@ def upload_attachment(current_user, task_id):
         db.session.commit()
         return jsonify(att.to_dict()), 201
     return jsonify({'message': 'Upload failed'}), 400
+# ... (Giữ nguyên các API move_task, upload_attachment cũ)
+
+# ==========================================
+# DOWNLOAD FILE
+# ==========================================
+@task_bp.route('/api/attachments/<int:attachment_id>', methods=['GET'])
+@token_required
+def download_attachment(current_user, attachment_id):
+    attachment = Attachment.query.get_or_404(attachment_id)
+    
+    # Kiểm tra file có tồn tại trên ổ cứng không
+    if not os.path.exists(attachment.file_path):
+        return jsonify({'message': 'File not found on server'}), 404
+
+    # Trả về file cho trình duyệt tải xuống
+    return send_file(
+        attachment.file_path,
+        as_attachment=True,
+        download_name=attachment.filename
+    )
+
+# ==========================================
+# DELETE FILE (Xóa file đính kèm)
+# ==========================================
+@task_bp.route('/api/attachments/<int:attachment_id>', methods=['DELETE'])
+@token_required
+def delete_attachment(current_user, attachment_id):
+    attachment = Attachment.query.get_or_404(attachment_id)
+    
+    # Chỉ người upload hoặc Giảng viên mới được xóa
+    if attachment.uploader_id != current_user.id and current_user.role != UserRole.LECTURER:
+        return jsonify({'message': 'Permission denied'}), 403
+
+    # 1. Xóa file vật lý trước (Dọn rác)
+    delete_physical_file(attachment.file_path)
+
+    # 2. Xóa dữ liệu trong Database
+    db.session.delete(attachment)
+    db.session.commit()
+    
+    return jsonify({'message': 'File deleted successfully'}), 200

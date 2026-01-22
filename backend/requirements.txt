@@ -1,8 +1,6 @@
 Flask
-flask-cors
-python-dotenv
-psycopg2-binary
 Flask-SQLAlchemy
-pyjwt
-flask-socketio
-eventlet
+psycopg2-binary
+PyJWT
+flasgger
+Werkzeug

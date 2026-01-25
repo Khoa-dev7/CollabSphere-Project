@@ -1,0 +1,829 @@
+* {
+  box-sizing: border-box;
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: #f4f6fb;
+  color: #222;
+}
+
+.layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* ========== SIDEBAR ========== */
+.sidebar {
+  width: 260px;
+  background: #0b3c6f;
+  color: #fff;
+  padding: 20px;
+}
+
+.user-card {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.avatar {
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  overflow: hidden;
+  margin: 0 auto;
+  cursor: pointer;
+  border: 3px solid #fff;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-note {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.user-name {
+  font-weight: 600;
+  margin-top: 10px;
+}
+
+.user-sub {
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+.btn-row {
+  margin-top: 10px;
+}
+
+/* ========== MENU ========== */
+.menu {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.menu-item {
+  background: none;
+  border: none;
+  color: #fff;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.menu-item:hover,
+.menu-item.active {
+  background: rgba(255,255,255,0.15);
+}
+
+.menu-item.danger {
+  color: #ffb3b3;
+}
+
+/* ========== MAIN ========== */
+.main {
+  flex: 1;
+  padding: 30px;
+}
+
+.card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 25px;
+}
+
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.badge {
+  background: #e0ecff;
+  color: #0b3c6f;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+}
+
+/* ========== FORM ========== */
+.form {
+  margin-top: 20px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 15px;
+}
+
+.field label {
+  font-size: 13px;
+  color: #555;
+}
+
+.field input {
+  width: 100%;
+  padding: 8px 10px;
+  margin-top: 4px;
+}
+
+.section-title {
+  margin-top: 30px;
+}
+
+/* ========== BUTTON ========== */
+.btn {
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+}
+
+.btn.primary {
+  background: #0b3c6f;
+  color: #fff;
+}
+
+.actions {
+  margin-top: 20px;
+  display: flex;
+  gap: 10px;
+}
+
+/* ========== MODAL ========== */
+.modal {
+  position: fixed;
+  inset: 0;
+}
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+}
+
+.modal-card {
+  position: relative;
+  background: #fff;
+  width: 420px;
+  max-width: 90%;
+  margin: 100px auto;
+  border-radius: 10px;
+  padding: 20px;
+}
+
+.modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.icon-btn {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+/* ========== RESPONSIVE (PHAN-100) ========== */
+@media (max-width: 768px) {
+  .layout {
+    flex-direction: column;
+  }
+  .sidebar {
+    width: 100%;
+  }
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+.timeline {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.timeline .task {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  border-left: 4px solid #ccc;
+  background: #fff;
+  margin-bottom: 12px;
+  border-radius: 6px;
+}
+
+.timeline .task.done {
+  border-color: #22c55e;
+  opacity: 0.85;
+}
+
+.timeline .time {
+  min-width: 80px;
+  font-weight: 600;
+  color: #555;
+}
+
+.timeline .content h3 {
+  margin: 0 0 4px;
+}
+
+.status {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.status.done {
+  color: #22c55e;
+}
+
+.status.due {
+  color: #f97316;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 16px 0;
+}
+
+.search {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #ddd;
+  min-width: 220px;
+}
+
+.chip {
+  padding: 6px 12px;
+  border-radius: 20px;
+  border: 1px solid #ddd;
+  background: #f5f5f5;
+  cursor: pointer;
+}
+
+.chip.active {
+  background: #2563eb;
+  color: white;
+  border-color: #2563eb;
+}
+/* ===== 1. VARIABLES & RESET ===== */
+:root {
+  --primary-color: #4f46e5; /* Màu xanh Indigo hiện đại */
+  --primary-light: #e0e7ff;
+  --text-dark: #1f2937;
+  --text-gray: #6b7280;
+  --bg-body: #f3f4f6;
+  --bg-card: #ffffff;
+  --sidebar-bg: #111827;
+  --sidebar-hover: #374151;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --radius: 12px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Inter', sans-serif; /* Sử dụng font Inter cho đẹp */
+}
+
+body {
+  background-color: var(--bg-body);
+  color: var(--text-dark);
+  height: 100vh;
+  overflow: hidden; /* Ẩn scroll thừa của body */
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+ul {
+  list-style: none;
+}
+
+/* ===== 2. LAYOUT GRID ===== */
+.layout {
+  display: grid;
+  grid-template-columns: 260px 1fr; /* Sidebar 260px, còn lại là Main */
+  height: 100vh;
+}
+
+/* ===== 3. SIDEBAR ===== */
+.sidebar {
+  background-color: var(--sidebar-bg);
+  color: #fff;
+  padding: 2rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 3rem;
+}
+
+.brand-logo {
+  width: 40px;
+  height: 40px;
+  background: var(--primary-color);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 1.2rem;
+}
+
+.brand-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.brand-sub {
+  font-size: 0.75rem;
+  color: var(--text-gray);
+  display: block;
+}
+
+/* Menu Items */
+.menu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1; /* Đẩy logout xuống dưới cùng */
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  color: #d1d5db;
+  transition: all 0.3s ease;
+  font-weight: 500;
+}
+
+.menu-item:hover {
+  background-color: var(--sidebar-hover);
+  color: #fff;
+  transform: translateX(5px);
+}
+
+.menu-item.active {
+  background-color: var(--primary-color);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.4);
+}
+
+.menu-item .icon {
+  font-size: 1.2rem;
+}
+
+.menu-item.danger:hover {
+  background-color: rgba(239, 68, 68, 0.2);
+  color: var(--danger);
+}
+
+/* ===== 4. MAIN CONTENT ===== */
+.main {
+  padding: 2rem;
+  overflow-y: auto; /* Scroll nội dung bên phải */
+}
+
+.page-head {
+  margin-bottom: 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.page-head h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+.muted {
+  color: var(--text-gray);
+  font-size: 0.9rem;
+}
+
+/* ===== 5. STATS CARDS ===== */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.stat-card {
+  background: var(--bg-card);
+  padding: 1.5rem;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  transition: transform 0.2s;
+  border: 1px solid #e5e7eb;
+}
+
+.stat-card:hover {
+  transform: translateY(-5px);
+  border-color: var(--primary-color);
+}
+
+.stat-card h3 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-gray);
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stat-number {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--text-dark);
+  margin-bottom: 0.25rem;
+}
+
+/* Highlight card style */
+.stat-card.highlight .stat-number {
+  color: var(--primary-color);
+}
+
+/* ===== 6. CONTENT GRID ===== */
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr; /* Timeline rộng hơn Notification */
+  gap: 1.5rem;
+}
+
+.card {
+  background: var(--bg-card);
+  padding: 1.5rem;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  border: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+}
+
+.card h2 {
+  font-size: 1.1rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+/* Timeline Styles */
+.mini-timeline {
+  flex: 1;
+}
+
+.mini-timeline li {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  position: relative;
+}
+
+/* Đường kẻ dọc nối các chấm */
+.mini-timeline li:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 20px;
+  bottom: -20px;
+  width: 2px;
+  background-color: #e5e7eb;
+}
+
+.dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  margin-top: 4px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.dot.done {
+  background-color: var(--success);
+  box-shadow: 0 0 0 3px #d1fae5;
+}
+
+.dot.due {
+  background-color: var(--warning);
+  box-shadow: 0 0 0 3px #fef3c7;
+}
+
+/* Notification Styles */
+.notice-list li {
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  border-left: 4px solid var(--primary-color);
+  font-size: 0.95rem;
+}
+
+.notice-list .time {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-gray);
+  margin-top: 4px;
+  text-align: right;
+}
+
+/* Link dưới cùng card */
+.link {
+  color: var(--primary-color);
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-top: auto;
+  padding-top: 1rem;
+  display: inline-block;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+/* ===== 7. RESPONSIVE ===== */
+@media (max-width: 1024px) {
+  .stats {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .layout {
+    grid-template-columns: 1fr; /* Mobile: 1 cột */
+    height: auto;
+    overflow: auto;
+  }
+
+  .sidebar {
+    flex-direction: row;
+    align-items: center;
+    padding: 1rem;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  
+  .brand { margin-bottom: 0; }
+  .brand-sub, .logout { display: none; } /* Ẩn bớt trên mobile */
+  
+  .menu {
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+  
+  .menu-item span:last-child {
+    display: none; /* Ẩn chữ, chỉ hiện icon trên mobile */
+  }
+
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+  
+  body { overflow: auto; }
+}
+/* =========================================
+   FIX GIAO DIỆN TRANG THÔNG BÁO (FULL)
+   ========================================= */
+
+/* 1. Khung chứa danh sách */
+.notice-list-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 2. Từng dòng thông báo */
+.notice-item {
+  display: flex;       /* Quan trọng: Sắp xếp icon và chữ nằm ngang */
+  align-items: flex-start;
+  gap: 1.25rem;        /* Khoảng cách giữa icon và chữ */
+  padding: 1.5rem;     /* Tạo không gian thoáng đãng */
+  border-bottom: 1px solid #f3f4f6;
+  transition: all 0.2s ease;
+  border-radius: 12px; /* Bo góc nhẹ khi hover */
+}
+
+/* Hiệu ứng khi di chuột vào */
+.notice-item:hover {
+  background-color: #f8fafc; /* Màu nền xám rất nhạt */
+  transform: translateY(-2px); /* Nổi nhẹ lên */
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+/* Dòng cuối không cần gạch chân */
+.notice-item:last-child {
+  border-bottom: none;
+}
+
+/* 3. Trạng thái CHƯA ĐỌC (Unread) */
+.notice-item.unread {
+  background-color: #eef2ff; /* Màu xanh rất nhạt để làm nổi bật */
+}
+.notice-item.unread:hover {
+  background-color: #e0e7ff;
+}
+
+/* Dấu chấm đỏ báo chưa đọc */
+.notice-item.unread .notice-content::after {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background-color: var(--danger); /* Màu đỏ */
+  border-radius: 50%;
+  margin-left: 8px;
+  transform: translateY(-2px);
+}
+
+/* 4. Định dạng Icon tròn */
+.notice-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%; /* Làm tròn */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  flex-shrink: 0; /* Không bị méo khi co màn hình */
+}
+
+/* Màu sắc riêng cho từng loại icon */
+.icon-primary { background-color: #e0e7ff; color: #4f46e5; } /* Xanh dương (Bài tập) */
+.icon-success { background-color: #d1fae5; color: #10b981; } /* Xanh lá (Điểm số) */
+.icon-warning { background-color: #ffedd5; color: #f97316; } /* Cam (Cảnh báo/Team) */
+
+/* 5. Định dạng Nội dung chữ */
+.notice-content {
+  flex: 1; /* Chiếm hết khoảng trống còn lại */
+}
+
+.notice-top {
+  display: flex;
+  justify-content: space-between; /* Đẩy ngày tháng sang phải cùng */
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.notice-title {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--text-dark);
+}
+
+.notice-time {
+  font-size: 0.85rem;
+  color: var(--text-gray);
+  font-weight: 500;
+}
+
+.notice-desc {
+  font-size: 0.95rem;
+  color: #4b5563;
+  line-height: 1.6; /* Tăng khoảng cách dòng cho dễ đọc */
+  margin: 0;
+}
+
+/* Mobile: Thu nhỏ padding chút */
+@media (max-width: 768px) {
+  .notice-item {
+    padding: 1rem;
+    gap: 1rem;
+  }
+  .notice-icon {
+    width: 40px; 
+    height: 40px; 
+    font-size: 1.2rem;
+  }
+}
+/* =========================================
+   PHÂN TRANG (PAGINATION) HIỆN ĐẠI
+   ========================================= */
+
+.pagination {
+  display: flex;
+  justify-content: center; /* Căn giữa màn hình */
+  align-items: center;
+  gap: 10px;               /* Khoảng cách giữa các nút */
+  margin-top: 2.5rem;      /* Cách xa nội dung bên trên */
+  padding-top: 1.5rem;
+  border-top: 1px solid #f3f4f6; /* Đường kẻ mờ ngăn cách */
+}
+
+.page-btn {
+  width: 40px;
+  height: 40px;
+  border: 1px solid #e5e7eb; /* Viền xám nhạt */
+  background-color: #fff;
+  color: #6b7280;            /* Màu chữ xám */
+  border-radius: 10px;       /* Bo góc mềm mại */
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  display: flex;             /* Để căn giữa số bên trong */
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); /* Hiệu ứng mượt mà */
+}
+
+/* Hiệu ứng khi di chuột (Hover) */
+.page-btn:hover:not(.active) {
+  background-color: #eff6ff; /* Nền xanh rất nhạt */
+  color: var(--primary-color); /* Chữ đổi màu xanh chủ đạo */
+  border-color: #bfdbfe;
+  transform: translateY(-2px); /* Nổi lên nhẹ */
+}
+
+/* Trạng thái trang đang chọn (Active) */
+.page-btn.active {
+  background-color: var(--primary-color); /* Màu tím xanh chủ đạo */
+  color: #fff;                            /* Chữ trắng */
+  border-color: var(--primary-color);
+  box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3); /* Đổ bóng phát sáng */
+}
+
+/* Nút Previous/Next (Mũi tên) */
+.page-btn:first-child,
+.page-btn:last-child {
+  font-size: 1.2rem;
+  padding-bottom: 2px; /* Chỉnh lại mũi tên cho cân */
+}
+/* =========================================
+   THANH CÔNG CỤ & BỘ LỌC (TOOLBAR)
+   ========================================= */
+
+/* 1. Bao quanh thanh công cụ */
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+/* 2. Khung chứa các nút lọc (Tạo nền xám bao quanh) */
+.filters {
+  display: inline-flex;
+  background-color: #f1f5f9; /* Màu nền xám rất nhạt */
+  padding: 4px;              /* Khoảng cách đệm bên trong */
+  border-radius: 10px;       /* Bo tròn khung */
+  gap: 4px;                  /* Khoảng cách giữa các nút */
+}
+
+/* 3. Style cho từng nút bấm */
+.filter-btn {
+  border: none;              /* Xóa viền đen mặc định */
+  background: transparent;   /* Nền trong suốt */
+  padding: 8px 16px;         /* Độ lớn của nút */
+  border-radius: 8px;        /* Bo góc nút */
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #64748b;            /* Màu chữ xám */
+  cursor: pointer;
+  transition: all 0.2s ease; /* Hiệu ứng mượt */
+}
+
+/* Hiệu ứng khi di chuột vào nút chưa chọn */
+.filter-btn:hover {
+  background-color: rgba(255, 255, 255, 0.6);
+  color: #334155;
+}
+
+/* 4. Trạng thái ĐANG CHỌN (Active) - Quan trọng nhất */
+.filter-btn.active {
+  background-color: #ffffff;       /* Nền trắng nổi bật */
+  color: var(--primary-color);     /* Chữ màu xanh chủ đạo */
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); /* Đổ bóng nhẹ tạo chiều sâu */
+}

@@ -1,0 +1,44 @@
+.main {
+  padding: 24px;
+}
+
+.card {
+  background: #fff;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+}
+
+.table th,
+.table td {
+  border: 1px solid #ddd;
+  padding: 10px;
+}
+
+.table th {
+  background: #f3f6fa;
+}
+
+input[type="number"] {
+  width: 80px;
+  padding: 6px;
+}
+
+.btn {
+  background: #0b3c6f;
+  color: #fff;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn:hover {
+  opacity: 0.9;
+}

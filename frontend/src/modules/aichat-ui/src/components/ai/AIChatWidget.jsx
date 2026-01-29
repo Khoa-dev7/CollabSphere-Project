@@ -11,7 +11,6 @@ export default function AIChatWidget() {
   const [typing, setTyping] = useState(false);
   const messagesEndRef = useRef(null);
 
-  // Auto scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, typing]);
@@ -24,7 +23,6 @@ export default function AIChatWidget() {
     setInput("");
     setTyping(true);
 
-    // Fake AI response (simulate Bedrock / GPT later)
     setTimeout(() => {
       const aiText =
         "I understand your question. For Project-Based Learning, I suggest breaking tasks into milestones and tracking individual contributions clearly.";
@@ -32,7 +30,7 @@ export default function AIChatWidget() {
     }, 1000);
   };
 
-  // Typing effect
+ 
   const typeEffect = (text) => {
     let i = 0;
     let current = "";

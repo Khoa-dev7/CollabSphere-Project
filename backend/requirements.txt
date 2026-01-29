@@ -3,3 +3,4 @@ uvicorn
 sqlalchemy
 psycopg2-binary
 python-socketio
+livekit-api>=0.1.0

@@ -1,0 +1,14 @@
+port: 7880
+bind_address: "0.0.0.0"
+rtc:
+    # Quan trọng: Ép cổng UDP cố định là 7882 để Docker hiểu
+    udp_port: 7882
+    tcp_port: 7881
+    use_external_ip: true
+    # Quan trọng nhất: Khai báo IP máy chủ là Localhost
+    node_ip_addresses:
+        - "127.0.0.1"
+keys:
+    devkey: secret
+logging:
+    level: info

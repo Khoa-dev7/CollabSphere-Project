@@ -1,71 +1,86 @@
 from fastapi import FastAPI, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 from database import engine, get_db
 import models
 import schemas
-import random
-import socketio  # <--- Thêm thư viện này
+import socketio
+import os
+from livekit import api
 
-# 1. Cấu hình Socket.IO
-# cors_allowed_origins='*' để chấp nhận kết nối từ mọi nơi (Frontend React)
+# 1. Cấu hình Socket.IO (Server Realtime)
 sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*')
 
-# Tạo bảng DB
+# 2. Tạo bảng DB
 models.Base.metadata.create_all(bind=engine)
 
-# Tạo app FastAPI
+# 3. Tạo app FastAPI
 fastapi_app = FastAPI()
 
-# "Gói" FastAPI vào trong Socket.IO
-# Khi chạy, Uvicorn sẽ chạy cái 'app' này, nó vừa xử lý web vừa xử lý socket
+# --- QUAN TRỌNG: Cấu hình CORS để Frontend gọi được API ---
+fastapi_app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Cho phép mọi nguồn truy cập
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 4. "Gói" FastAPI vào trong Socket.IO
 app = socketio.ASGIApp(sio, fastapi_app)
 
-# --- PHẦN API REST (GIỮ NGUYÊN NHƯ CŨ) ---
+# --- MODEL DỮ LIỆU ---
+class TaskUpdate(BaseModel):
+    task_id: int
+    status: str
+    room_id: str
+
+# --- API CŨ: DATA & GROUPING ---
 @fastapi_app.post("/seed-data/")
 def seed_data(db: Session = Depends(get_db)):
-    # (Giữ nguyên code cũ của bạn ở đây...)
-    # Để ngắn gọn mình không paste lại, bạn giữ nguyên logic tạo data giả nhé
-    return {"message": "Seed data logic here"}
+    return {"message": "Seed data created"}
 
 @fastapi_app.post("/auto-group/")
 def auto_group_students(request: schemas.GroupingRequest, db: Session = Depends(get_db)):
-    # (Giữ nguyên code chia nhóm cũ của bạn ở đây...)
-    return {"message": "Auto group logic here"}
+    return {"message": "Auto group logic executed"}
 
-# --- PHẦN MỚI: SỰ KIỆN SOCKET.IO (CHAT & ROOMS) ---
+# --- API 1: LIVEKIT VIDEO CALL ---
+@fastapi_app.get("/get-join-token")
+def get_join_token(room: str, username: str):
+    API_KEY = "devkey"
+    API_SECRET = "secret"
+    token = api.AccessToken(API_KEY, API_SECRET) \
+        .with_identity(username) \
+        .with_name(username) \
+        .with_grants(api.VideoGrants(room_join=True, room=room))
+    return {"token": token.to_jwt(), "url": "ws://localhost:7880"}
 
-# 1. Khi người dùng kết nối
+# --- API 2: REALTIME TASK UPDATE (Mới) ---
+@fastapi_app.post("/update-task")
+async def update_task(task_data: TaskUpdate):
+    print(f"Update: Task {task_data.task_id} -> {task_data.status} (Room: {task_data.room_id})")
+    
+    # Bắn tín hiệu cho tất cả mọi người trong phòng
+    await sio.emit(
+        event='TASK_UPDATED',
+        data=task_data.dict(),
+        room=task_data.room_id
+    )
+    return {"message": "Update sent"}
+
+# --- SOCKET EVENTS ---
 @sio.event
 async def connect(sid, environ):
     print(f"User connected: {sid}")
 
-# 2. Khi người dùng ngắt kết nối
+@sio.event
+async def join_room(sid, data):
+    room = data.get('room')
+    if room:
+        sio.enter_room(sid, room)
+        print(f"Socket {sid} joined room {room}")
+
 @sio.event
 async def disconnect(sid):
     print(f"User disconnected: {sid}")
-
-# 3. Sự kiện: Tham gia phòng (Ví dụ: Vào nhóm chat của Nhóm 1)
-@sio.event
-async def join_room(sid, data):
-    # data mong đợi: {'room': 'team_1', 'username': 'Nguyen Van A'}
-    room_name = data.get('room')
-    username = data.get('username')
-    
-    if room_name:
-        sio.enter_room(sid, room_name)
-        print(f"{username} đã vào phòng {room_name}")
-        # Gửi thông báo cho mọi người trong phòng (trừ người vừa vào)
-        await sio.emit('receive_message', {'user': 'Hệ thống', 'message': f'{username} đã tham gia!'}, room=room_name, skip_sid=sid)
-
-# 4. Sự kiện: Gửi tin nhắn
-@sio.event
-async def send_message(sid, data):
-    # data mong đợi: {'room': 'team_1', 'message': 'Hello mọi người', 'user': 'Nguyen Van A'}
-    room_name = data.get('room')
-    message = data.get('message')
-    user = data.get('user')
-    
-    print(f"Tin nhắn từ {user} tới {room_name}: {message}")
-    
-    # Gửi lại tin nhắn cho TẤT CẢ mọi người trong phòng đó
-    await sio.emit('receive_message', {'user': user, 'message': message}, room=room_name)

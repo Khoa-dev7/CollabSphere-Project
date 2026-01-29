@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  # 1. Database PostgreSQL
+  db:
+    image: postgres:15
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=cosre_user
+      - POSTGRES_PASSWORD=cosre_password
+      - POSTGRES_DB=cosre_db
+    ports:
+      - "5432:5432"
+
+  # 2. Backend (Python)
+  backend:
+    build: ./backend
+    volumes:
+      - ./backend:/app  # Mount code để sửa code là server tự cập nhật không cần restart
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    environment:
+      - DATABASE_URL=postgresql://cosre_user:cosre_password@db:5432/cosre_db
+
+  # 3. Frontend (React)
+  frontend:
+    build: ./frontend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules # Tránh ghi đè folder modules trong container
+    ports:
+      - "3000:3000"
+    stdin_open: true # Cần thiết cho React
+    tty: true
+
+volumes:
+  postgres_data:

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import "./NotificationsPage.css";
+import  "./NotificationsCenter.css";
+;
 
 export default function NotificationsPage() {
   const [filter, setFilter] = useState("all");

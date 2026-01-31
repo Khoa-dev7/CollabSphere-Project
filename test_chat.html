@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Chat CollabSphere</title>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+</head>
+<body>
+    <h2>Test Chat Room: Team 1</h2>
+    <input id="username" placeholder="Tên của bạn (VD: Nam)" />
+    <button onclick="joinRoom()">Vào phòng chat</button>
+    <br><br>
+    <input id="message" placeholder="Nhập tin nhắn..." disabled />
+    <button id="btnSend" onclick="sendMessage()" disabled>Gửi</button>
+    
+    <ul id="messages"></ul>
+
+    <script>
+        // Kết nối tới Backend chạy ở port 8000
+        const socket = io("http://localhost:8000", {
+            transports: ["websocket", "polling"]
+        });
+
+        let currentRoom = "team_1";
+        let myName = "";
+
+        socket.on("connect", () => {
+            console.log("Đã kết nối tới Server! ID:", socket.id);
+        });
+
+        // Lắng nghe tin nhắn từ server trả về
+        socket.on("receive_message", (data) => {
+            const li = document.createElement("li");
+            li.innerText = `${data.user}: ${data.message}`;
+            document.getElementById("messages").appendChild(li);
+        });
+
+        function joinRoom() {
+            myName = document.getElementById("username").value;
+            if(!myName) return alert("Nhập tên đi bạn ơi!");
+
+            // Gửi sự kiện 'join_room' lên server
+            socket.emit("join_room", { room: currentRoom, username: myName });
+            
+            // Mở khóa ô nhập liệu
+            document.getElementById("message").disabled = false;
+            document.getElementById("btnSend").disabled = false;
+        }
+
+        function sendMessage() {
+            const msg = document.getElementById("message").value;
+            // Gửi sự kiện 'send_message' lên server
+            socket.emit("send_message", { room: currentRoom, message: msg, user: myName });
+            document.getElementById("message").value = "";
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  # 1. Database PostgreSQL
+  db:
+    image: postgres:15
+    container_name: collabsphere_db
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: collabsphere_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  # 2. Backend API (Python)
+  backend:
+    build: ./backend
+    container_name: collabsphere_backend
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - db
+
+  # 3. Frontend App (React) 
+  frontend:
+    build: ./frontend
+    container_name: collabsphere_frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules 
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

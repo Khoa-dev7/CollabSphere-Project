@@ -1,0 +1,42 @@
+/* ===== App Layout ===== */
+.app-container {
+  min-height: 100vh;
+  padding: 24px;
+  background: linear-gradient(135deg, #f5f7fa, #e4e8ee);
+}
+
+/* ===== Header ===== */
+.app-header {
+  background: #ffffff;
+  padding: 16px 24px;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  margin-bottom: 24px;
+}
+
+.app-header h1 {
+  font-size: 22px;
+  font-weight: 600;
+  color: #1677ff;
+}
+
+.app-header p {
+  font-size: 14px;
+  color: #666;
+  margin-top: 4px;
+}
+
+/* ===== Content ===== */
+.app-content {
+  background: #ffffff;
+  padding: 24px;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+}
+
+/* ===== Demo text ===== */
+.app-content p {
+  font-size: 14px;
+  color: #444;
+  line-height: 1.6;
+}

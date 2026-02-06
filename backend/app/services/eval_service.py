@@ -5,6 +5,9 @@ from app.models.base_models import User
 from app.schemas.eval_schemas import FeedbackCreate, PeerReviewCreate
 
 def provide_lecturer_feedback(db: Session, feedback_in: FeedbackCreate):
+    """
+    Giảng viên cung cấp phản hồi và điểm số cho một bài nộp Checkpoint.
+    """
     submission = db.query(CheckpointSubmission).filter(CheckpointSubmission.checkpoint_id == feedback_in.checkpoint_id).first()
     if submission:
         submission.feedback = feedback_in.comment
@@ -14,7 +17,10 @@ def provide_lecturer_feedback(db: Session, feedback_in: FeedbackCreate):
     return submission
 
 def submit_peer_review(db: Session, reviewer_id: int, review_in: PeerReviewCreate):
-    # Kiểm tra xem họ có cùng nhóm không
+    """
+    Sinh viên gửi đánh giá đồng đẳng cho thành viên trong cùng nhóm.
+    """
+    # Kiểm tra xem người đánh giá và người được đánh giá có cùng nhóm không
     reviewer_in_team = db.query(TeamMember).filter(TeamMember.team_id == review_in.team_id, TeamMember.user_id == reviewer_id).first()
     reviewee_in_team = db.query(TeamMember).filter(TeamMember.team_id == review_in.team_id, TeamMember.user_id == review_in.reviewee_id).first()
     
@@ -22,6 +28,7 @@ def submit_peer_review(db: Session, reviewer_id: int, review_in: PeerReviewCreat
         from fastapi import HTTPException
         raise HTTPException(status_code=403, detail="Cả người đánh giá và người được đánh giá phải cùng một nhóm")
 
+    # Tạo bản ghi đánh giá mới
     db_review = PeerReview(
         reviewer_id=reviewer_id,
         **review_in.dict()
@@ -32,12 +39,16 @@ def submit_peer_review(db: Session, reviewer_id: int, review_in: PeerReviewCreat
     return db_review
 
 def get_team_evaluation_summary(db: Session, team_id: int):
-    # Lấy tất cả thành viên
+    """
+    Lấy bản tóm tắt kết quả đánh giá đồng đẳng của toàn bộ thành viên trong nhóm.
+    Tính toán điểm trung bình và số lượng lượt đánh giá của từng người.
+    """
+    # Lấy danh sách tất cả thành viên trong nhóm
     members = db.query(User).join(TeamMember).filter(TeamMember.team_id == team_id).all()
     
     summary = []
     for member in members:
-        # Tính điểm trung bình
+        # Tính toán thống kê điểm trung bình
         stats = db.query(
             func.avg(PeerReview.score).label("avg_score"),
             func.count(PeerReview.id).label("count")
@@ -55,16 +66,19 @@ from app.models.eval_models import RubricAssessment, RubricAssessmentItem, Rubri
 from sqlalchemy.orm import Session
 
 def get_rubric_for_project(db: Session, project_id: int):
-    """Finds or creates a default rubric for a project"""
+    """
+    Tìm hoặc tạo mới một Rubric mặc định cho dự án.
+    Nếu dự án chưa có Rubric, hệ thống sẽ tự động tạo một cái với 4 tiêu chí mặc định.
+    """
     rubric = db.query(Rubric).filter(Rubric.project_id == project_id).first()
     if not rubric:
-        # Create a default rubric
+        # Tạo Rubric mặc định
         rubric = Rubric(title=f"Rubric for Project {project_id}", project_id=project_id)
         db.add(rubric)
         db.commit()
         db.refresh(rubric)
         
-        # Add default criteria
+        # Thêm các tiêu chí (Criteria) mẫu
         default_criteria = [
             ("Chuyên cần", 20),
             ("Đóng góp", 30),
@@ -84,57 +98,71 @@ def get_rubric_for_project(db: Session, project_id: int):
         db.refresh(rubric)
     return rubric
 
-def save_bulk_evaluations(db: Session, evaluator_id: int, team_id: int, evaluations_data: list):
-    """Saves multiple assessments at once"""
+async def save_bulk_evaluations(db: Session, evaluator_id: int, team_id: int, evaluations_data: list):
+    """
+    Lưu hàng loạt kết quả chấm điểm dự án cho nhiều sinh viên trong một nhóm.
+    """
     from app.services import rubric_assessment_service
     from app.schemas.eval_schemas import RubricAssessmentCreate, RubricAssessmentItemCreate
     
-    # Get the project_id from team
+    # Lấy thông tin nhóm để lấy project_id
     team = db.query(Team).filter(Team.id == team_id).first()
-    if not team or not team.project_id:
-        return {"error": "Nhóm hoặc dự án không hợp lệ"}
+    if not team:
+        raise HTTPException(status_code=404, detail="Nhóm không tồn tại")
+    if not team.project_id:
+        raise HTTPException(status_code=400, detail="Nhóm chưa được gán dự án")
         
     rubric = get_rubric_for_project(db, team.project_id)
     
     saved_count = 0
-    # Group evaluations by student_id
+    # Nhóm dữ liệu đánh giá theo student_id
     student_scores = {}
     for ev in evaluations_data:
-        s_id = ev.get("student_id")
+        s_id_raw = ev.get("student_id")
+        if s_id_raw is None: continue
+        s_id = int(s_id_raw)
         if s_id not in student_scores:
-            student_scores[s_id] = []
-        student_scores[s_id].append(ev)
+            student_scores[s_id] = {"scores": [], "feedback": ev.get("feedback")}
+        student_scores[s_id]["scores"].append(ev)
         
-    for student_id, scores in student_scores.items():
-        # Check if an assessment already exists
+    for student_id, scores_data in student_scores.items():
+        # Kiểm tra xem đã có bản đánh giá nào tồn tại cho sinh viên này chưa
         assessment = db.query(RubricAssessment).filter(
             RubricAssessment.rubric_id == rubric.id,
             RubricAssessment.team_id == team_id,
             RubricAssessment.student_id == student_id
         ).first()
         
-        items = [
-            RubricAssessmentItemCreate(criteria_id=s["criteria_id"], score=s["score"])
-            for s in scores
-        ]
+        items_payload = []
+        for s in scores_data["scores"]:
+            try:
+                c_id = int(s["criteria_id"])
+                score_val = float(s["score"])
+                items_payload.append(RubricAssessmentItemCreate(criteria_id=c_id, score=score_val))
+            except (ValueError, TypeError):
+                continue
         
         assessment_in = RubricAssessmentCreate(
             rubric_id=rubric.id,
             team_id=team_id,
             project_id=team.project_id,
             student_id=student_id,
-            items=items
+            items=items_payload,
+            feedback=scores_data["feedback"]
         )
         
         if assessment:
-            # Update existing (simplified: delete items and recreate)
+            # Cập nhật bản đánh giá hiện có
+            # 1. Xoá các điểm thành phần cũ
             db.query(RubricAssessmentItem).filter(RubricAssessmentItem.assessment_id == assessment.id).delete()
-            # Recalculate total
+            
+            # 2. Thêm mới các điểm thành phần và tính lại tổng điểm
             total_score = 0
             criteria_map = {c.id: c for c in rubric.criteria}
-            for item in items:
+            for item in items_payload:
                 crit = criteria_map.get(item.criteria_id)
                 if crit:
+                    # Điểm cuối cùng = Điểm tiêu chí * Trọng số
                     total_score += item.score * crit.weight
                     db_item = RubricAssessmentItem(
                         assessment_id=assessment.id,
@@ -142,16 +170,36 @@ def save_bulk_evaluations(db: Session, evaluator_id: int, team_id: int, evaluati
                         score=item.score
                     )
                     db.add(db_item)
+            
             assessment.total_score = total_score
-            db.commit()
+            assessment.feedback = assessment_in.feedback
+            db.add(assessment)
+            db.commit() # Lưu thay đổi cho từng sinh viên để đảm bảo ổn định
         else:
+            # Tạo bản đánh giá hoàn toàn mới
             rubric_assessment_service.create_assessment(db, assessment_in, evaluator_id)
+        
+        # Gửi thông báo cho sinh viên được chấm điểm
+        try:
+            from app.services.notification_service import create_notification
+            await create_notification(
+                db, 
+                recipient_id=student_id, 
+                content=f"Giảng viên đã cập nhật điểm cho dự án của bạn tại nhóm {team.name}.",
+                type="success",
+                related_link="/my-grades"
+            )
+        except Exception as e:
+            print(f"Notification error (non-fatal): {e}")
+            
         saved_count += 1
         
-    return {"message": f"Đã lưu {saved_count} bản đánh giá"}
+    return {"message": f"Đã lưu thành công {saved_count} sinh viên"}
 
 def get_student_grades(db: Session, student_id: int):
-    """Returns all assessments for a student"""
+    """
+    Lấy danh sách tất cả các điểm số (thông qua Rubric) của một sinh viên.
+    """
     assessments = db.query(RubricAssessment).filter(RubricAssessment.student_id == student_id).all()
     result = []
     for a in assessments:
@@ -171,22 +219,22 @@ def get_student_grades(db: Session, student_id: int):
     return result
 
 def calculate_final_score(db: Session, assessment_id: int):
+    """
+    Tính toán thủ công tổng điểm của một bản đánh giá dựa trên các điểm thành phần và trọng số.
+    """
     assessment = db.query(RubricAssessment).filter(RubricAssessment.id == assessment_id).first()
     if not assessment:
         return None
     
-    # Lấy tất cả các tiêu chí
+    # Lấy tất cả các chi tiết điểm số thành phần
     items = db.query(RubricAssessmentItem).filter(RubricAssessmentItem.assessment_id == assessment_id).all()
     
     total_score = 0.0
     for item in items:
-        # Lấy tiêu chí để tìm trọng số
+        # Lấy tiêu chí để biết trọng số
         criteria = db.query(RubricCriteria).filter(RubricCriteria.id == item.criteria_id).first()
         if criteria:
-            # Công thức: Điểm thành phần * Trọng số
-            # Giả định điểm thành phần đã được quy đổi (ví dụ: 8/10) hoặc thô?
-            # Thông thường điểm là thô (ví dụ: 8) và điểm tối đa là 10.
-            # Nếu trọng số là phần trăm (ví dụ: 0.3), thì 8 * 0.3 = 2.4.
+            # Công thức: Điểm thành phần * Trọng số (thường 0.0 - 1.0)
             total_score += item.score * criteria.weight
             
     assessment.total_score = total_score

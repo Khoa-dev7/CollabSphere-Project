@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from typing import List
 from app.models.project_models import Project, ProjectMilestone, Team, TeamMember
+from app.models.base_models import User
 from app.schemas.project_schemas import ProjectCreate, TeamCreate
 import boto3
 import json
@@ -9,6 +10,10 @@ from app.core.config import settings
 from app.services import ai_service
 
 def create_project(db: Session, project_in: ProjectCreate, creator_id: int):
+    """
+    Tạo một dự án mới cùng với các mốc thời gian (milestones) đi kèm.
+    Mặc định trạng thái dự án khi mới tạo là 'Pending' (Chờ duyệt).
+    """
     db_project = Project(
         title=project_in.title,
         description=project_in.description,
@@ -37,6 +42,9 @@ def create_project(db: Session, project_in: ProjectCreate, creator_id: int):
 from app.services.activity_log_service import log_activity
 
 def generate_milestones_ai(db: Session, subject_id: int, user_id: int):
+    """
+    Sử dụng Trí tuệ nhân tạo (AI) để gợi ý các mốc thời gian (milestones) phù hợp cho môn học.
+    """
     # Fetch subject/syllabus info for context
     # This is a refinement of the previous mock logic
     prompt = f"Generate project milestones for a subject with ID {subject_id}."
@@ -55,7 +63,11 @@ def generate_milestones_ai(db: Session, subject_id: int, user_id: int):
         {"title": "AI Generated Milestone", "description": response[:200], "order": 1}
     ]
 
-def approve_project(db: Session, project_id: int, status: str, user_id: int):
+async def approve_project(db: Session, project_id: int, status: str, user_id: int):
+    """
+    Phê duyệt hoặc từ chối một đề xuất dự án.
+    Gửi thông báo đến người tạo dự án sau khi hành động hoàn tất.
+    """
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -69,10 +81,25 @@ def approve_project(db: Session, project_id: int, status: str, user_id: int):
         target_type="project",
         target_id=project.id
     )
+
+    # Trigger Notification for creator
+    from app.services.notification_service import create_notification
+    msg = "duyệt" if status == "Approved" else ("từ chối" if status == "Rejected" else status)
+    await create_notification(
+        db, 
+        recipient_id=project.creator_id, 
+        content=f"Dự án '{project.title}' của bạn đã được {msg}.",
+        type="info" if status == "Approved" else "warning",
+        related_link="/profile" # Or project list page
+    )
     
     return project
 
 def create_team(db: Session, team_in: TeamCreate):
+    """
+    Tạo một nhóm làm việc mới.
+    Nếu có 'project_title', hệ thống sẽ tự động tạo Project và bộ Rubric chấm điểm mẫu cho nhóm này.
+    """
     # Logic: If project_title is provided, create a new Project and Rubric automatically
     created_project_id = team_in.project_id
     
@@ -118,7 +145,7 @@ def create_team(db: Session, team_in: TeamCreate):
             db_crit = RubricCriteria(
                 rubric_id=new_rubric.id,
                 title=crit["title"],
-                weight=crit["weight"],
+                weight=crit["weight"] / 100.0,
                 max_score=crit["max_score"],
                 order=idx
             )
@@ -159,7 +186,11 @@ def create_team(db: Session, team_in: TeamCreate):
         )
     
     return db_team
-def add_team_member(db: Session, team_id: int, user_id: int, actor_id: int = None):
+async def add_team_member(db: Session, team_id: int, user_id: int, actor_id: int = None):
+    """
+    Thêm một thành viên mới vào nhóm.
+    Kiểm tra giới hạn số lượng thành viên tối đa của dự án (nếu có định nghĩa).
+    """
     # Check if team exists
     team = db.query(Team).filter(Team.id == team_id).first()
     if not team:
@@ -183,6 +214,7 @@ def add_team_member(db: Session, team_id: int, user_id: int, actor_id: int = Non
     
     if actor_id:
         target_user = db.query(User).filter(User.id == user_id).first()
+        from app.services.activity_log_service import log_activity
         log_activity(
             db=db,
             user_id=actor_id,
@@ -192,15 +224,32 @@ def add_team_member(db: Session, team_id: int, user_id: int, actor_id: int = Non
             target_id=user_id
         )
         
+        # Trigger Notification
+        try:
+            from app.services.notification_service import create_notification
+            await create_notification(
+                db,
+                recipient_id=user_id,
+                content=f"Bạn đã được thêm vào nhóm '{team.name}'.",
+                type="success",
+                related_link="/workspace"
+            )
+        except Exception as e:
+            print(f"Notification error: {e}")
+        
     return member
 
-def remove_team_member(db: Session, team_id: int, user_id: int, actor_id: int = None):
+async def remove_team_member(db: Session, team_id: int, user_id: int, actor_id: int = None):
+    """Xoá một thành viên khỏi nhóm và gửi thông báo cảnh báo."""
     member = db.query(TeamMember).filter(TeamMember.team_id == team_id, TeamMember.user_id == user_id).first()
     if not member:
         raise HTTPException(status_code=404, detail="Thành viên không nằm trong nhóm này")
     
+    team = db.query(Team).filter(Team.id == team_id).first()
+    
     if actor_id:
         target_user = db.query(User).filter(User.id == user_id).first()
+        from app.services.activity_log_service import log_activity
         log_activity(
             db=db,
             user_id=actor_id,
@@ -210,8 +259,21 @@ def remove_team_member(db: Session, team_id: int, user_id: int, actor_id: int = 
             target_id=user_id
         )
         
+        # Trigger Notification
+        try:
+            from app.services.notification_service import create_notification
+            await create_notification(
+                db,
+                recipient_id=user_id,
+                content=f"Bạn đã bị xóa khỏi nhóm '{team.name if team else 'của mình'}'.",
+                type="warning"
+            )
+        except Exception as e:
+            print(f"Notification error: {e}")
+        
     db.delete(member)
     db.commit()
+    return True
     return True
 
 def get_projects(db: Session, creator_id: int = None, lecturer_id: int = None, status: str = None, syllabus_id: int = None, skip: int = 0, limit: int = 100):
@@ -286,3 +348,13 @@ def assign_project_to_class(db: Session, class_id: int, project_id: int):
     db.commit()
     db.refresh(db_cp)
     return db_cp
+
+def delete_team(db: Session, team_id: int):
+    """Deletes a team and all its associated data via cascade"""
+    team = db.query(Team).filter(Team.id == team_id).first()
+    if not team:
+        return None
+    
+    db.delete(team)
+    db.commit()
+    return True

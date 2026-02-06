@@ -1,9 +1,15 @@
 import { NavLink } from "react-router-dom";
 
+/**
+ * Component Sidebar - Thanh điều hướng chính của hệ thống.
+ * Hiển thị các liên kết chức năng dựa trên vai trò (Role) của người dùng đã đăng nhập.
+ */
 export default function Sidebar() {
+  // Hàm xác định class CSS cho link dựa trên trạng thái đang được chọn (Active)
   const linkClass = ({ isActive }) =>
     `menu-item${isActive ? " active" : ""}`;
 
+  // Lấy vai trò người dùng từ localStorage để phân quyền hiển thị menu
   const role = localStorage.getItem("role") || "";
   const r = role.toLowerCase();
 
@@ -12,15 +18,17 @@ export default function Sidebar() {
       <h2 className="logo">CollabSphere</h2>
 
       <nav className="menu">
+        {/* Dashboard chung cho mọi người dùng */}
         <NavLink to="/" end className={linkClass}>
           🏠 Dashboard
         </NavLink>
 
+        {/* Trợ lý ảo AI sử dụng chung */}
         <NavLink to="/ai-chat" className={linkClass}>
           🤖 Trợ lý AI
         </NavLink>
 
-        {/* --- SYSTEM ADMIN (Admin) --- */}
+        {/* --- MENU DÀNH CHO QUẢN TRỊ VIÊN HỆ THỐNG (Admin) --- */}
         {(r === "admin") && (
           <>
             <NavLink to="/activity" className={linkClass}>
@@ -32,7 +40,7 @@ export default function Sidebar() {
           </>
         )}
 
-        {/* --- ACADEMIC STAFF (Staff) --- */}
+        {/* --- MENU DÀNH CHO NHÂN VIÊN HỌC VỤ (Staff) --- */}
         {(r === "staff") && (
           <>
             <NavLink to="/admin" className={linkClass}>
@@ -47,7 +55,7 @@ export default function Sidebar() {
           </>
         )}
 
-        {/* --- HEAD OF DEPARTMENT (Head) --- */}
+        {/* --- MENU DÀNH CHO TRƯỞNG BỘ MÔN (Head) --- */}
         {(r === "head" || r === "head_dept") && (
           <>
             <NavLink to="/courses" className={linkClass}>
@@ -62,7 +70,7 @@ export default function Sidebar() {
           </>
         )}
 
-        {/* --- LECTURER --- */}
+        {/* --- MENU DÀNH CHO GIẢNG VIÊN (Lecturer) --- */}
         {(r === "lecturer") && (
           <>
             <NavLink to="/courses" className={linkClass}>
@@ -95,7 +103,7 @@ export default function Sidebar() {
           </>
         )}
 
-        {/* --- STUDENT --- */}
+        {/* --- MENU DÀNH CHO SINH VIÊN (Student) --- */}
         {(r === "student") && (
           <>
             <NavLink to="/courses" className={linkClass}>
@@ -131,7 +139,7 @@ export default function Sidebar() {
           </>
         )}
 
-        {/* --- SHARED --- */}
+        {/* Phân tách giữa các mục chức năng và mục tài khoản */}
         <div style={{ height: "1px", background: "#eee", margin: "10px 0" }}></div>
 
         <NavLink to="/profile" className={linkClass}>

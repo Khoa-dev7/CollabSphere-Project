@@ -18,7 +18,7 @@ export default function KanbanBoard({ teamId }) {
         const tasks = res.data;
         const newCols = { todo: [], doing: [], review: [], done: [] };
         tasks.forEach(t => {
-          const status = t.status.toLowerCase().replace(" ", "");
+          const status = (t.status || "todo").toLowerCase().replace(/\s/g, "");
           if (newCols[status]) {
             newCols[status].push({
               id: t.id,

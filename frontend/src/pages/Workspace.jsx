@@ -22,7 +22,10 @@ import {
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-// Sortable Task Card Component
+/**
+ * Component thẻ nhiệm vụ (Task Card) có khả năng sắp xếp (Sortable).
+ * Sử dụng thư viện dnd-kit để xử lý kéo thả.
+ */
 function SortableTaskCard({ task }) {
     const {
         attributes,
@@ -55,6 +58,7 @@ function SortableTaskCard({ task }) {
         >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <strong style={{ flex: 1 }}>{task.title}</strong>
+                {/* Nút bấm để hỏi AI hướng dẫn thực hiện nhiệm vụ này */}
                 <button
                     title="Hỏi trợ lý AI về nhiệm vụ này"
                     style={{
@@ -62,7 +66,7 @@ function SortableTaskCard({ task }) {
                     }}
                     onClick={(e) => {
                         e.stopPropagation();
-                        // Call global AI handler in Workspace
+                        // Gọi hàm xử lý AI toàn cục được định nghĩa trong Workspace
                         window.askAIGuidance(task);
                     }}
                 >
@@ -82,7 +86,9 @@ function SortableTaskCard({ task }) {
     );
 }
 
-// Droppable Column Container
+/**
+ * Component cột Kanban (Droppable Column) nơi có thể thả các nhiệm vụ vào.
+ */
 function DroppableColumn({ id, title, children, count }) {
     const { setNodeRef, isOver } = useDroppable({ id });
 
@@ -117,22 +123,121 @@ function DroppableColumn({ id, title, children, count }) {
     );
 }
 
+/**
+ * Trang Workspace Dự án - Trái tim của việc quản lý dự án nhóm.
+ * Bao gồm bảng Kanban, quản lý Milestone và tích hợp Trợ lý AI.
+ */
 export default function Workspace() {
-    const [team, setTeam] = useState(null);
-    const [tasks, setTasks] = useState([]);
-    const [teamMembers, setTeamMembers] = useState([]);
-    const [milestones, setMilestones] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
-    const [showTaskModal, setShowTaskModal] = useState(false);
-    const [activeId, setActiveId] = useState(null);
-    const [aiGuidance, setAiGuidance] = useState(null);
-    const [loadingAI, setLoadingAI] = useState(false);
+    // 1. State quản lý dữ liệu chính
+    const [team, setTeam] = useState(null); // Thông tin nhóm hiện tại
+    const [tasks, setTasks] = useState([]); // Toàn bộ nhiệm vụ của nhóm
+    const [columns, setColumns] = useState({ // Cấu trúc cột Kanban và các nhiệm vụ trong mỗi cột
+        todo: { id: 'todo', title: 'Cần làm', taskIds: [] },
+        doing: { id: 'doing', title: 'Đang làm', taskIds: [] },
+        done: { id: 'done', title: 'Hoàn thành', taskIds: [] },
+    });
+    const [teamMembers, setTeamMembers] = useState([]); // Thành viên trong nhóm
+    const [milestones, setMilestones] = useState([]); // Các mốc quan trọng của dự án
+    const [loading, setLoading] = useState(true); // Trạng thái tải dữ liệu
+    const [error, setError] = useState(""); // Thông báo lỗi
+    const [teamId, setTeamId] = useState(null); // ID của nhóm hiện tại
+    const [teamInfo, setTeamInfo] = useState(null); // Thông tin chi tiết của nhóm
 
-    // Global handler for task guidance (called from child component)
-    window.askAIGuidance = async (task) => {
+    // 2. State điều khiển UI (Modal và Phân loại)
+    const [showTaskModal, setShowTaskModal] = useState(false); // Trạng thái hiển thị modal thêm task
+    const [activeId, setActiveId] = useState(null); // ID của task đang được kéo
+    const [selectedTask, setSelectedTask] = useState(null); // Task đang được chọn để chỉnh sửa
+    const [filterPriority, setFilterPriority] = useState('All'); // Lọc theo độ ưu tiên
+
+    // 3. State cho Trợ lý AI
+    const [aiGuidance, setAiGuidance] = useState(null); // Nội dung hướng dẫn từ AI
+    const [loadingAI, setLoadingAI] = useState(false); // Trạng thái đang đợi AI phản hồi
+    const [showAIModal, setShowAIModal] = useState(false); // Trạng thái hiển thị modal AI
+    const [currentAITask, setCurrentAITask] = useState(null); // Nhiệm vụ hiện tại đang hỏi AI
+
+    // Cấu hình các cảm biến cho kéo thả (chuột và bàn phím)
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 8, // Tránh việc vô tình kéo khi chỉ nhấn click
+            },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
+
+    // Lấy toàn bộ dữ liệu cần thiết cho Workspace từ API khi component mount
+    useEffect(() => {
+        fetchWorkspaceData();
+    }, []);
+
+    // Hàm global để các Component con có thể gọi trợ lý AI
+    useEffect(() => {
+        window.askAIGuidance = (task) => {
+            setCurrentAITask(task);
+            handleAIGuidance(task); // Gọi hàm xử lý AI
+        };
+    }, []);
+
+    // Hàm để lấy tất cả dữ liệu cần thiết cho workspace
+    const fetchWorkspaceData = async () => {
+        setLoading(true);
+        setError("");
+        try {
+            // 1. Lấy thông tin nhóm và lộ trình (milestones)
+            const teamResponse = await api.get("/workspace/teams/me");
+            setTeam(teamResponse.data);
+            setMilestones(teamResponse.data.milestones || []);
+            const tId = teamResponse.data.id;
+            setTeamId(tId);
+            setTeamInfo(teamResponse.data);
+
+            // 2. Lấy danh sách nhiệm vụ của nhóm
+            const tasksResponse = await api.get(`/workspace/teams/${teamResponse.data.id}/tasks`);
+            const allTasks = tasksResponse.data || [];
+            setTasks(allTasks);
+
+            // 3. Lấy thông tin thành viên nhóm
+            const membersResponse = await api.get(`/workspace/teams/${teamResponse.data.id}/members`);
+            setTeamMembers(membersResponse.data);
+
+            // 4. Phân loại nhiệm vụ vào các cột Kanban
+            updateColumns(allTasks);
+
+        } catch (err) {
+            console.error("Workspace fetch error", err);
+            if (err.response?.status === 404) {
+                setError("Bạn chưa được phân vào nhóm nào. Vui lòng liên hệ giảng viên.");
+            } else {
+                setError("Không thể tải dữ liệu workspace. Vui lòng thử lại.");
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Hàm cập nhật cấu trúc cột Kanban dựa trên danh sách nhiệm vụ
+    const updateColumns = (allTasks) => {
+        const newColumns = {
+            todo: { id: 'Todo', title: 'Cần làm', taskIds: [] },
+            doing: { id: 'Doing', title: 'Đang làm', taskIds: [] },
+            done: { id: 'Done', title: 'Hoàn thành', taskIds: [] },
+        };
+
+        allTasks.sort((a, b) => a.order - b.order).forEach(task => {
+            if (newColumns[task.status.toLowerCase()]) {
+                newColumns[task.status.toLowerCase()].taskIds.push(task.id);
+            }
+        });
+        setColumns(newColumns);
+    };
+
+    // Hàm xử lý yêu cầu hướng dẫn từ AI
+    const handleAIGuidance = async (task) => {
         setLoadingAI(true);
         setAiGuidance({ title: task.title, response: "Đang yêu cầu AI hướng dẫn..." });
+        setShowAIModal(true); // Hiển thị modal AI
         try {
             const res = await api.post("/ai/task-guidance", {
                 context: task.description || task.title,
@@ -150,52 +255,10 @@ export default function Workspace() {
     const role = localStorage.getItem("role") || "";
     const r = role.toLowerCase();
 
-    const sensors = useSensors(
-        useSensor(PointerSensor, {
-            activationConstraint: {
-                distance: 8,
-            },
-        }),
-        useSensor(KeyboardSensor, {
-            coordinateGetter: sortableKeyboardCoordinates,
-        })
-    );
-
-    const fetchData = async () => {
-        setLoading(true);
-        setError("");
-        try {
-            // Fetch team info with milestones
-            const teamResponse = await api.get("/workspace/teams/me");
-            setTeam(teamResponse.data);
-            setMilestones(teamResponse.data.milestones || []);
-
-            // Fetch team tasks
-            const tasksResponse = await api.get(`/workspace/teams/${teamResponse.data.id}/tasks`);
-            setTasks(tasksResponse.data);
-
-            // Fetch team members
-            const membersResponse = await api.get(`/workspace/teams/${teamResponse.data.id}/members`);
-            setTeamMembers(membersResponse.data);
-
-        } catch (err) {
-            console.error("Workspace fetch error", err);
-            if (err.response?.status === 404) {
-                setError("Bạn chưa được phân vào nhóm nào. Vui lòng liên hệ giảng viên.");
-            } else {
-                setError("Không thể tải dữ liệu workspace. Vui lòng thử lại.");
-            }
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchData();
-    }, []);
-
+    // Kiểm tra xem người dùng có quyền quản lý hay không
     const isLeader = team && (team.leader_id === userId || r === "lecturer" || r === "head" || r === "admin");
 
+    // Đánh dấu hoàn thành hoặc chưa hoàn thành một Milestone
     const toggleMilestone = async (m) => {
         if (!isLeader) return;
         try {
@@ -206,78 +269,132 @@ export default function Workspace() {
         }
     };
 
+    // Callback khi một nhiệm vụ mới được tạo thành công từ modal
     const handleTaskCreated = (newTask) => {
         setTasks([...tasks, newTask]);
+        updateColumns([...tasks, newTask]); // Cập nhật lại cột Kanban
+    };
+
+    // Hàm tìm cột chứa một task cụ thể
+    const findContainer = (id) => {
+        if (id in columns) {
+            return id;
+        }
+        return Object.keys(columns).find((key) => columns[key].taskIds.includes(id));
     };
 
     const handleDragStart = (event) => {
         setActiveId(event.active.id);
     };
 
-    const handleDragEnd = async (event) => {
+    function handleDragOver(event) {
+        // Xử lý khi một thẻ nhiệm vụ được kéo lướt qua ranh giới giữa các cột
         const { active, over } = event;
-        setActiveId(null);
-
         if (!over) return;
 
-        const activeIdStr = active.id;
-        const overIdStr = over.id;
+        const activeId = active.id;
+        const overId = over.id;
 
-        const activeTask = tasks.find(t => t.id === activeIdStr || t.id.toString() === activeIdStr.toString());
-        if (!activeTask) return;
+        const activeContainer = findContainer(activeId);
+        const overContainer = findContainer(overId);
 
-        let newStatus = activeTask.status;
-        let newOrder = activeTask.order;
-
-        const validColumns = ['Todo', 'Doing', 'Done'];
-
-        if (validColumns.includes(overIdStr)) {
-            // Dropped on a column
-            newStatus = overIdStr;
-            const tasksInColumn = tasks.filter(t => t.status === newStatus && t.id !== activeIdStr);
-            newOrder = tasksInColumn.length;
-        } else {
-            // Dropped on another task
-            const overTask = tasks.find(t => t.id === overIdStr || t.id.toString() === overIdStr.toString());
-            if (overTask) {
-                newStatus = overTask.status;
-                const tasksInColumn = tasks.filter(t => t.status === newStatus);
-                const overIndex = tasksInColumn.findIndex(t => t.id === overIdStr || t.id.toString() === overIdStr.toString());
-                newOrder = overIndex;
-            }
+        if (!activeContainer || !overContainer || activeContainer === overContainer) {
+            return;
         }
 
-        if (activeTask.status === newStatus && activeTask.order === newOrder) return;
+        // Di chuyển thẻ nhiệm vụ sang cột mới trong State (UI cập nhật tức thì)
+        setColumns((prev) => {
+            const activeItems = prev[activeContainer].taskIds;
+            const overItems = prev[overContainer].taskIds;
+            const activeIndex = activeItems.indexOf(activeId);
+            const overIndex = overItems.indexOf(overId);
 
-        // Optimistic update
-        const updatedTasks = tasks.map(t => {
-            if (t.id === activeTask.id) {
-                return { ...t, status: newStatus, order: newOrder };
+            let newIndex;
+            if (overId in prev) { // Nếu thả vào một cột trống
+                newIndex = overItems.length + 1;
+            } else { // Nếu thả vào giữa các task trong một cột
+                const isBelowLastItem = over && overIndex === overItems.length - 1;
+                const modifier = isBelowLastItem ? 1 : 0;
+                newIndex = overIndex >= 0 ? overIndex + modifier : overItems.length + 1;
             }
-            return t;
+
+            return {
+                ...prev,
+                [activeContainer]: {
+                    ...prev[activeContainer],
+                    taskIds: activeItems.filter((item) => item !== activeId), // Xóa task khỏi cột cũ
+                },
+                [overContainer]: {
+                    ...prev[overContainer],
+                    taskIds: [
+                        ...overItems.slice(0, newIndex),
+                        activeItems[activeIndex], // Thêm task vào vị trí mới trong cột mới
+                        ...overItems.slice(newIndex, overItems.length),
+                    ],
+                },
+            };
         });
-        setTasks(updatedTasks);
+    }
 
-        // API call
-        try {
-            await api.put(`/workspace/tasks/${activeTask.id}/move`, {
-                new_status: newStatus,
-                new_order: newOrder
-            });
-            // Refresh to get correct order from backend
-            const tasksResponse = await api.get(`/workspace/teams/${team.id}/tasks`);
-            setTasks(tasksResponse.data);
-        } catch (err) {
-            console.error("Error moving task:", err);
-            // Revert on error
-            setTasks(tasks);
-            alert("Không thể di chuyển nhiệm vụ. Vui lòng thử lại.");
+    async function handleDragEnd(event) {
+        // Xử lý khi người dùng thả thẻ nhiệm vụ vào vị trí mới
+        const { active, over } = event;
+        const id = active.id;
+        const overId = over?.id;
+
+        const activeContainer = findContainer(id);
+        const overContainer = findContainer(overId);
+
+        if (!activeContainer || !overContainer || activeContainer !== overContainer) {
+            // Nếu cột thay đổi, cập nhật trạng thái nhiệm vụ lên Server
+            if (overContainer) {
+                try {
+                    await api.patch(`/workspace/tasks/${id}/status`, { status: overContainer });
+                    // Cập nhật lại danh sách nhiệm vụ cục bộ
+                    setTasks(prev => prev.map(t => t.id === id ? { ...t, status: overContainer } : t));
+                    // Sau khi cập nhật trạng thái, cần sắp xếp lại thứ tự trong cột mới
+                    // Để đơn giản, ta có thể gọi lại fetchData hoặc cập nhật lại cột
+                    fetchWorkspaceData(); // Tải lại dữ liệu để đảm bảo đồng bộ và thứ tự chính xác
+                } catch (err) {
+                    console.error("Failed to update task status", err);
+                    fetchWorkspaceData(); // Tải lại dữ liệu nếu có lỗi để đồng bộ
+                }
+            }
+            setActiveId(null);
+            return;
         }
-    };
 
-    const handleDragOver = (event) => {
-        // Optional: Add visual feedback during drag
-    };
+        // Nếu chỉ thay đổi thứ tự trong cùng một cột
+        const activeIndex = columns[activeContainer].taskIds.indexOf(active.id);
+        const overIndex = columns[overContainer].taskIds.indexOf(overId);
+
+        if (activeIndex !== overIndex) {
+            // Cập nhật thứ tự trong state cục bộ
+            setColumns((items) => ({
+                ...items,
+                [overContainer]: {
+                    ...items[overContainer],
+                    taskIds: arrayMove(items[overContainer].taskIds, activeIndex, overIndex),
+                },
+            }));
+
+            // Gửi yêu cầu cập nhật thứ tự lên Backend
+            try {
+                const updatedTaskIds = arrayMove(columns[overContainer].taskIds, activeIndex, overIndex);
+                await api.patch(`/workspace/tasks/reorder`, {
+                    status: overContainer,
+                    task_ids: updatedTaskIds
+                });
+                // Sau khi cập nhật thứ tự, cần cập nhật lại danh sách tasks để phản ánh order mới
+                fetchWorkspaceData();
+            } catch (err) {
+                console.error("Failed to reorder tasks", err);
+                fetchWorkspaceData(); // Tải lại dữ liệu nếu có lỗi
+            }
+        }
+
+        setActiveId(null);
+    }
 
     if (loading) {
         return (
@@ -302,7 +419,14 @@ export default function Workspace() {
         );
     }
 
-    const getTasksByStatus = (status) => tasks.filter(t => t.status === status).sort((a, b) => a.order - b.order);
+    // Helper: Lọc và sắp xếp nhiệm vụ theo trạng thái
+    const getTasksByStatus = (status) => {
+        const columnKey = status.toLowerCase();
+        const taskIdsInColumn = columns[columnKey]?.taskIds || [];
+        return taskIdsInColumn
+            .map(id => tasks.find(t => t.id === id))
+            .filter(Boolean); // Lọc bỏ các task không tìm thấy
+    };
 
     return (
         <Layout title="Workspace">
@@ -319,7 +443,7 @@ export default function Workspace() {
                 onDragOver={handleDragOver}
             >
                 <div className="workspace-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 24 }}>
-                    {/* Main Content: Kanban Board */}
+                    {/* KHU VỰC CHÍNH: Bảng Kanban 3 cột */}
                     <div className="kanban">
                         <div className="row-between" style={{ marginBottom: 16 }}>
                             <h3>Bảng công việc</h3>
@@ -367,13 +491,13 @@ export default function Workspace() {
                         </div>
                     </div>
 
-                    {/* Sidebar: Milestones & Checkpoints */}
+                    {/* THANH BÊN: Lộ trình (Milestones) & Checkpoints */}
                     <div className="side-tools">
                         <div className="card" style={{ marginBottom: 24 }}>
                             <h4>Lộ trình (Milestones)</h4>
                             <div style={{ marginTop: 16 }}>
                                 {milestones.length === 0 ? (
-                                    <p style={{ fontSize: 13, opacity: 0.6 }}>Chưa có milestone nào</p>
+                                    <p style={{ fontSize: 13, opacity: 0.6 }}>Chưa có mốc thời gian nào được thiết lập.</p>
                                 ) : (
                                     milestones.map(m => (
                                         <div key={m.id} className="milestone-item" style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'flex-start' }}>
@@ -405,17 +529,18 @@ export default function Workspace() {
 
                         <div className="card">
                             <h4>Checkpoints</h4>
-                            <p style={{ fontSize: 12, opacity: 0.6, marginBottom: 16 }}>Nộp báo cáo định kỳ cho Giảng viên.</p>
+                            <p style={{ fontSize: 12, opacity: 0.6, marginBottom: 16 }}>Nộp báo cáo định kỳ cho Giảng viên hướng dẫn.</p>
                             {isLeader && (
-                                <button className="btn outline w-full" style={{ marginBottom: 12 }}>+ Tạo Checkpoint</button>
+                                <button className="btn outline w-full" style={{ marginBottom: 12 }}>+ Tạo Checkpoint mới</button>
                             )}
                             <div style={{ padding: 12, background: '#f1f5f9', borderRadius: 8, fontSize: 13 }}>
-                                Chưa có checkpoint nào được tạo.
+                                Chưa có báo cáo checkpoint nào.
                             </div>
                         </div>
                     </div>
                 </div>
 
+                {/* Overlay hiển thị khi đang thực hiện kéo một task */}
                 <DragOverlay>
                     {activeId ? (
                         <div className="card task-card" style={{ opacity: 0.8 }}>
@@ -425,6 +550,7 @@ export default function Workspace() {
                 </DragOverlay>
             </DndContext>
 
+            {/* Modal để chỉnh sửa hoặc tạo mới nhiệm vụ */}
             <TaskModal
                 isOpen={showTaskModal}
                 onClose={() => setShowTaskModal(false)}
@@ -458,7 +584,8 @@ export default function Workspace() {
                     transition: background-color 0.2s;
                 }
             `}</style>
-            {/* AI Guidance Modal */}
+
+            {/* Modal hướng dẫn chi tiết từ AI cho một nhiệm vụ cụ thể */}
             {aiGuidance && (
                 <div style={{
                     position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
@@ -472,12 +599,12 @@ export default function Workspace() {
                     }} onClick={e => e.stopPropagation()}>
                         <button onClick={() => setAiGuidance(null)} style={{ position: 'absolute', top: 15, right: 15, border: 'none', background: 'none', fontSize: 20, cursor: 'pointer' }}>×</button>
                         <h3 style={{ marginBottom: 15, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 10 }}>
-                            ✨ Hướng dẫn từ AI cho: {aiGuidance.title}
+                            ✨ Trợ lý AI khuyên bạn: {aiGuidance.title}
                         </h3>
                         {loadingAI ? (
                             <div style={{ textAlign: 'center', padding: 20 }}>
                                 <div className="spinner-small" style={{ margin: '0 auto 10px', width: 30, height: 30, border: '3px solid #f1f5f9', borderTopColor: '#3b82f6', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
-                                <p>AI đang phân tích nhiệm vụ...</p>
+                                <p>Đang phân tích nhiệm vụ...</p>
                             </div>
                         ) : (
                             <div style={{ lineHeight: 1.6, color: '#475569', whiteSpace: 'pre-wrap' }}>
@@ -485,7 +612,7 @@ export default function Workspace() {
                             </div>
                         )}
                         <div style={{ marginTop: 25, textAlign: 'right' }}>
-                            <button className="btn primary" onClick={() => setAiGuidance(null)}>Đã rõ</button>
+                            <button className="btn primary" onClick={() => setAiGuidance(null)}>Tôi đã hiểu</button>
                         </div>
                     </div>
                 </div>

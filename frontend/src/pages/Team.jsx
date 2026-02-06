@@ -1,25 +1,34 @@
 import { useMemo, useState, useEffect } from "react";
 import Layout from "../components/Layout";
 import api from "../api";
+import EmptyState from "../components/EmptyState";
 
 export default function Team() {
-  const [members, setMembers] = useState([]);
-  const [teamInfo, setTeamInfo] = useState(null);
+  // State lưu trữ dữ liệu
+  const [members, setMembers] = useState([]); // Danh sách thành viên trong nhóm
+  const [teamInfo, setTeamInfo] = useState(null); // Thông tin tổng quan của nhóm (tên, đề tài...)
   const [loading, setLoading] = useState(true);
-  const [isLeader, setIsLeader] = useState(false);
-  const [availableStudents, setAvailableStudents] = useState([]);
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [isLeader, setIsLeader] = useState(false); // Trạng thái người dùng hiện tại có phải nhóm trưởng không
+  const [availableStudents, setAvailableStudents] = useState([]); // Danh sách sinh viên khả dụng để thêm vào nhóm
+  const [showAddModal, setShowAddModal] = useState(false); // Điều khiển modal thêm thành viên
   const currentUserId = parseInt(localStorage.getItem("user_id"));
 
   useEffect(() => {
+    // Tải thông tin nhóm và danh sách thành viên song song
     Promise.all([
       api.get("/workspace/teams/me/members"),
       api.get("/workspace/teams/me")
     ])
       .then(([resMembers, resInfo]) => {
         const teamData = resInfo.data;
+        if (!teamData) {
+          setTeamInfo(null);
+          setMembers([]);
+          return;
+        }
         setTeamInfo(teamData);
 
+        // Định dạng lại danh sách thành viên để hiển thị
         setMembers(resMembers.data.map(m => ({
           id: m.id,
           name: m.full_name,
@@ -27,16 +36,24 @@ export default function Team() {
           email: m.email
         })));
 
-        // Check if current user is the leader
+        // Kiểm tra xem user hiện tại có phải là nhóm trưởng (Leader) không
         if (teamData && teamData.leader_id === currentUserId) {
           setIsLeader(true);
         }
       })
-      .catch(err => console.error("Failed to fetch team data", err))
+      .catch(err => {
+        if (err.response?.status === 404) {
+          setTeamInfo(null);
+          setMembers([]);
+        } else {
+          console.error("Failed to fetch team data", err);
+        }
+      })
       .finally(() => setLoading(false));
   }, [currentUserId]);
 
   const fetchAvailableStudents = async () => {
+    // Lấy danh sách các sinh viên trong cùng một lớp mà chưa có nhóm
     if (!teamInfo) return;
     try {
       const res = await api.get(`/staff/classes/${teamInfo.class_id}/available-students`);
@@ -50,9 +67,11 @@ export default function Team() {
     if (!teamInfo) return;
 
     try {
+      // Gọi API thêm học viên vào nhóm (chỉ nhóm trưởng mới có quyền này)
       await api.post(`/projects/teams/${teamInfo.id}/members/${userId}`);
       alert("✅ Đã thêm thành viên!");
-      // Refresh members
+
+      // Tải lại danh sách thành viên mới
       const resMembers = await api.get("/workspace/teams/me/members");
       setMembers(resMembers.data.map(m => ({
         id: m.id,
@@ -71,12 +90,14 @@ export default function Team() {
   const handleRemoveMember = async (userId) => {
     if (!teamInfo) return;
 
-    if (!confirm("Bạn có chắc muốn xóa thành viên này?")) return;
+    if (!confirm("Bạn có chắc muốn xóa thành viên này khỏi nhóm không?")) return;
 
     try {
+      // API xóa thành viên khỏi nhóm
       await api.delete(`/projects/teams/${teamInfo.id}/members/${userId}`);
       alert("✅ Đã xóa thành viên!");
-      // Refresh members
+
+      // Cập nhật lại danh sách hiển thị
       const resMembers = await api.get("/workspace/teams/me/members");
       setMembers(resMembers.data.map(m => ({
         id: m.id,
@@ -90,44 +111,81 @@ export default function Team() {
     }
   };
 
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(""); // Tìm kiếm thành viên trong bảng
   const filtered = members.filter((m) => m.name?.toLowerCase().includes(q.toLowerCase()));
 
+  // Giao diện khi đang tải dữ liệu
+  if (loading) {
+    return (
+      <Layout title="Nhóm của tôi">
+        <div className="card" style={{ textAlign: 'center', padding: 50 }}>
+          <p>Đang tải dữ liệu nhóm...</p>
+        </div>
+      </Layout>
+    );
+  }
+
+  // Giao diện khi người dùng chưa thuộc về nhóm nào
+  if (!teamInfo) {
+    return (
+      <Layout title="Nhóm của tôi">
+        <div className="card">
+          <EmptyState
+            icon="Team"
+            title="Bạn chưa có nhóm"
+            message="Hiện tại tài khoản của bạn chưa được phân vào nhóm nào. Vui lòng liên hệ Giảng viên hoặc Staff để được hỗ trợ."
+          />
+        </div>
+      </Layout>
+    );
+  }
+
   return (
-    <Layout title="Team">
+    <Layout title="Nhóm của tôi">
       <div className="card">
         <div className="row-between mb-4">
+          {/* Thông tin nhóm và dự án */}
           <div>
             <h3>{teamInfo ? teamInfo.name : "Team của tôi"}</h3>
             {teamInfo && (
-              <div style={{ color: "#64748b", marginTop: 4 }}>
+              <div style={{ color: "#64748b", marginTop: 8 }}>
                 {teamInfo.project_title && (
-                  <span style={{ marginRight: 16 }}>
+                  <div style={{ marginBottom: 4 }}>
                     <strong>Dự án:</strong> {teamInfo.project_title}
-                  </span>
+                  </div>
                 )}
                 {teamInfo.leader_name && (
-                  <span>
+                  <div>
                     <strong>Nhóm trưởng:</strong> {teamInfo.leader_name}
-                  </span>
+                  </div>
                 )}
               </div>
             )}
           </div>
-          {isLeader && (
-            <button
-              className="btn primary"
-              onClick={() => {
-                fetchAvailableStudents();
-                setShowAddModal(true);
-              }}
-            >
-              + Thêm thành viên
-            </button>
-          )}
-          <input className="search" placeholder="Tìm thành viên..." value={q} onChange={(e) => setQ(e.target.value)} />
+
+          <div style={{ display: 'flex', gap: 12 }}>
+            {/* Chỉ hiển thị nút thêm thành viên nếu là nhóm trưởng */}
+            {isLeader && (
+              <button
+                className="btn primary"
+                onClick={() => {
+                  fetchAvailableStudents();
+                  setShowAddModal(true);
+                }}
+              >
+                + Thêm thành viên
+              </button>
+            )}
+            <input
+              className="search"
+              placeholder="Tìm thành viên..."
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+          </div>
         </div>
 
+        {/* Bảng danh sách thành viên */}
         <table className="table">
           <thead>
             <tr>
@@ -143,7 +201,11 @@ export default function Team() {
             ) : filtered.map((m) => (
               <tr key={m.id}>
                 <td>{m.name}</td>
-                <td><span className={`pill ${m.role === "Leader" ? "ok" : ""}`}>{m.role}</span></td>
+                <td>
+                  <span className={`pill ${m.role === "Leader" ? "ok" : ""}`}>
+                    {m.role === "Leader" ? "Trưởng nhóm" : "Thành viên"}
+                  </span>
+                </td>
                 <td>{m.email}</td>
                 {isLeader && (
                   <td>
@@ -170,12 +232,12 @@ export default function Team() {
         </table>
       </div>
 
-      {/* Add Member Modal */}
+      {/* Modal thêm thành viên dành cho Nhóm trưởng */}
       {showAddModal && (
         <div style={modalOverlayStyle} onClick={() => setShowAddModal(false)}>
           <div style={modalContentStyle} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-              <h3 style={{ margin: 0 }}>Thêm thành viên</h3>
+              <h3 style={{ margin: 0 }}>Thêm thành viên vào nhóm</h3>
               <button
                 style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "#64748b" }}
                 onClick={() => setShowAddModal(false)}
@@ -186,13 +248,13 @@ export default function Team() {
 
             <div style={{ maxHeight: 300, overflowY: "auto" }}>
               {availableStudents.length === 0 ? (
-                <p style={{ textAlign: "center", opacity: 0.5 }}>Không có sinh viên khả dụng</p>
+                <p style={{ textAlign: "center", padding: 20, opacity: 0.5 }}>Không có sinh viên khả dụng để thêm.</p>
               ) : (
                 availableStudents.map(student => (
                   <div key={student.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "1px solid #e2e8f0" }}>
                     <div>
                       <strong>{student.full_name}</strong>
-                      <small style={{ color: "#64748b", marginLeft: 8 }}>({student.username})</small>
+                      <div style={{ color: "#64748b", fontSize: 12 }}>{student.username} · {student.email}</div>
                     </div>
                     <button
                       className="btn primary"
@@ -211,3 +273,26 @@ export default function Team() {
     </Layout>
   );
 }
+
+// Kiểu dáng cho Modal (Inline Style)
+const modalOverlayStyle = {
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  display: 'flex',
+  justifyContent: 'center',
+  alignItems: 'center',
+  zIndex: 1000,
+};
+
+const modalContentStyle = {
+  backgroundColor: '#fff',
+  padding: '30px',
+  borderRadius: '16px',
+  width: '100%',
+  maxWidth: '500px',
+  boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+};

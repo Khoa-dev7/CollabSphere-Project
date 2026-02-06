@@ -1,20 +1,26 @@
 import { useState, useEffect } from "react";
 import Layout from "../components/Layout";
 import api from "../api";
+import EmptyState from "../components/EmptyState";
 
 export default function Teams() {
-    const [teams, setTeams] = useState([]);
-    const [classes, setClasses] = useState([]);
-    const [projects, setProjects] = useState([]);
-    const [students, setStudents] = useState([]);
-    const [classStudents, setClassStudents] = useState([]); // Students in selected class
-    const [showModal, setShowModal] = useState(false);
-    const [showManageModal, setShowManageModal] = useState(false);
+    // State quản lý danh sách dữ liệu
+    const [teams, setTeams] = useState([]); // Danh sách nhóm đã tạo
+    const [classes, setClasses] = useState([]); // Danh sách lớp học giảng viên phụ trách
+    const [projects, setProjects] = useState([]); // Danh sách dự án (nếu có)
+    const [students, setStudents] = useState([]); // Danh sách sinh viên
+    const [classStudents, setClassStudents] = useState([]); // Sinh viên trong lớp đang chọn (để tạo nhóm)
+
+    // State điều khiển Modal
+    const [showModal, setShowModal] = useState(false); // Modal tạo nhóm mới
+    const [showManageModal, setShowManageModal] = useState(false); // Modal quản lý thành viên nhóm
+
     const [selectedTeamForManage, setSelectedTeamForManage] = useState(null);
-    const [teamMembers, setTeamMembers] = useState([]);
-    const [availableStudents, setAvailableStudents] = useState([]);
+    const [teamMembers, setTeamMembers] = useState([]); // Thành viên hiện tại của nhóm đang quản lý
+    const [availableStudents, setAvailableStudents] = useState([]); // Sinh viên chưa có nhóm trong lớp
     const [loading, setLoading] = useState(true);
 
+    // Dữ liệu form tạo nhóm
     const [formData, setFormData] = useState({
         name: "",
         class_id: "",
@@ -29,7 +35,7 @@ export default function Teams() {
         fetchData();
     }, []);
 
-    // Fetch students when class is selected
+    // Tự động tải danh sách sinh viên khi lớp học được chọn trong form
     useEffect(() => {
         if (formData.class_id) {
             fetchClassStudents(formData.class_id);
@@ -41,36 +47,27 @@ export default function Teams() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            // Fetch classes
+            // Lấy danh sách các lớp học của giảng viên hiện tại
             const classRes = await api.get("/staff/classes/me");
-            console.log("Classes:", classRes.data);
             setClasses(classRes.data || []);
 
-            // Projects are optional - can be added later if needed
-            // For now, teams can be created without projects
-            setProjects([]);
-
-            // Fetch existing teams
+            // Lấy danh sách toàn bộ các nhóm
             const teamRes = await api.get("/projects/teams");
-            console.log("Teams response:", teamRes.data);
-            console.log("Teams count:", teamRes.data?.length || 0);
             setTeams(teamRes.data || []);
         } catch (err) {
             console.error("Failed to fetch data", err);
-            console.error("Error details:", err.response?.data);
         } finally {
             setLoading(false);
         }
     };
 
     const fetchClassStudents = async (classId) => {
-        console.log("Fetching students for class:", classId);
         try {
+            // Lấy danh sách sinh viên thuộc một lớp cụ thể
             const res = await api.get(`/staff/lecturer/classes/${classId}/students`);
             const studentList = res.data || [];
-            console.log("Fetched students:", studentList);
 
-            // Get team assignments for these students
+            // Gắn thêm thông tin xem sinh viên đã có nhóm chưa
             const studentsWithTeams = studentList.map(student => {
                 const assignedTeam = teams.find(team =>
                     team.members?.some(m => m.id === student.id) || team.leader_id === student.id
@@ -82,11 +79,9 @@ export default function Teams() {
                 };
             });
 
-            console.log("Students with team info:", studentsWithTeams);
             setClassStudents(studentsWithTeams);
         } catch (err) {
             console.error("Failed to fetch class students", err);
-            console.error("Error details:", err.response?.data);
             setClassStudents([]);
         }
     };
@@ -100,6 +95,7 @@ export default function Teams() {
         }
 
         try {
+            // Gửi yêu cầu tạo nhóm mới lên server
             await api.post("/projects/teams", {
                 name: formData.name,
                 class_id: parseInt(formData.class_id),
@@ -129,6 +125,7 @@ export default function Teams() {
     };
 
     const toggleMember = (userId) => {
+        // Thêm hoặc xóa sinh viên khỏi danh sách được chọn trong form
         setFormData(prev => ({
             ...prev,
             member_ids: prev.member_ids.includes(userId)
@@ -138,15 +135,16 @@ export default function Teams() {
     };
 
     const handleManageTeam = async (team) => {
+        // Mở modal quản lý thành viên cho một nhóm cụ thể
         setSelectedTeamForManage(team);
         setShowManageModal(true);
 
         try {
-            // Fetch current team members
+            // Lấy danh sách thành viên hiện tại của nhóm
             const membersRes = await api.get(`/workspace/teams/${team.id}/members`);
             setTeamMembers(membersRes.data || []);
 
-            // Fetch available students from the class
+            // Lấy danh sách những sinh viên chưa có nhóm trong lớp này để gợi ý thêm vào
             const availableRes = await api.get(`/staff/classes/${team.class_id}/available-students`);
             setAvailableStudents(availableRes.data || []);
         } catch (err) {
@@ -158,15 +156,16 @@ export default function Teams() {
         if (!selectedTeamForManage) return;
 
         try {
+            // API thêm thành viên vào nhóm
             await api.post(`/projects/teams/${selectedTeamForManage.id}/members/${userId}`);
             alert("✅ Đã thêm thành viên!");
-            // Refresh team members
+
+            // Cập nhật lại danh sách thành viên và sinh viên khả dụng trên UI
             const membersRes = await api.get(`/workspace/teams/${selectedTeamForManage.id}/members`);
             setTeamMembers(membersRes.data || []);
-            // Refresh available students
             const availableRes = await api.get(`/staff/classes/${selectedTeamForManage.class_id}/available-students`);
             setAvailableStudents(availableRes.data || []);
-            fetchData(); // Refresh teams list
+            fetchData(); // Cập nhật lại danh sách nhóm ở trang chính
         } catch (err) {
             console.error(err);
             alert("❌ Thêm thành viên thất bại: " + (err.response?.data?.detail || err.message));
@@ -179,18 +178,32 @@ export default function Teams() {
         if (!confirm("Bạn có chắc muốn xóa thành viên này?")) return;
 
         try {
+            // API xóa thành viên khỏi nhóm
             await api.delete(`/projects/teams/${selectedTeamForManage.id}/members/${userId}`);
             alert("✅ Đã xóa thành viên!");
-            // Refresh team members
+
+            // Cập nhật lại UI
             const membersRes = await api.get(`/workspace/teams/${selectedTeamForManage.id}/members`);
             setTeamMembers(membersRes.data || []);
-            // Refresh available students
             const availableRes = await api.get(`/staff/classes/${selectedTeamForManage.class_id}/available-students`);
             setAvailableStudents(availableRes.data || []);
-            fetchData(); // Refresh teams list
+            fetchData();
         } catch (err) {
             console.error(err);
             alert("❌ Xóa thành viên thất bại: " + (err.response?.data?.detail || err.message));
+        }
+    };
+
+    const handleDeleteTeam = async (teamId) => {
+        if (!confirm("⚠️ CẢNH BÁO: Việc xóa nhóm sẽ xóa TẤT CẢ dữ liệu liên quan. Bạn có chắc chắn muốn xóa không?")) return;
+
+        try {
+            await api.delete(`/projects/teams/${teamId}`);
+            alert("✅ Đã xóa nhóm thành công!");
+            fetchData();
+        } catch (err) {
+            console.error(err);
+            alert("❌ Xóa nhóm thất bại: " + (err.response?.data?.detail || err.message));
         }
     };
 
@@ -218,21 +231,18 @@ export default function Teams() {
                         Đang tải dữ liệu...
                     </div>
                 ) : classes.length === 0 ? (
-                    <div style={{ textAlign: "center", padding: 60, opacity: 0.5 }}>
-                        <div style={{ fontSize: 48, marginBottom: 16 }}>📚</div>
-                        <p>Bạn chưa được phân công lớp học nào</p>
-                        <small style={{ color: "#64748b" }}>Liên hệ Staff để được thêm vào lớp học</small>
-                    </div>
+                    <EmptyState
+                        icon="Empty"
+                        title="Chưa có lớp học"
+                        message="Bạn chưa được phân công lớp học nào. Liên hệ Staff để được trợ giúp."
+                    />
                 ) : teams.length === 0 ? (
-                    <div style={{ textAlign: "center", padding: 60, opacity: 0.5 }}>
-                        <div style={{ fontSize: 48, marginBottom: 16 }}>👥</div>
-                        <p>Chưa có nhóm nào được tạo</p>
-                        {role === "Lecturer" && (
-                            <button className="btn primary" style={{ marginTop: 16 }} onClick={() => setShowModal(true)}>
-                                Tạo nhóm đầu tiên
-                            </button>
-                        )}
-                    </div>
+                    <EmptyState
+                        icon="Team"
+                        title="Chưa có nhóm"
+                        message="Chưa có nhóm nào được tạo trong các lớp bạn quản lý."
+                        action={role === "Lecturer" ? { label: "Tạo nhóm đầu tiên", onClick: () => setShowModal(true) } : null}
+                    />
                 ) : (
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 20 }}>
                         {teams.map(team => (
@@ -273,13 +283,22 @@ export default function Teams() {
                                 </div>
 
                                 {role === "Lecturer" && (
-                                    <button
-                                        className="btn"
-                                        style={{ marginTop: 12, width: "100%" }}
-                                        onClick={() => handleManageTeam(team)}
-                                    >
-                                        📋 Quản lý nhóm
-                                    </button>
+                                    <div style={{ display: 'flex', gap: '8px', marginTop: 12 }}>
+                                        <button
+                                            className="btn"
+                                            style={{ flex: 2 }}
+                                            onClick={() => handleManageTeam(team)}
+                                        >
+                                            📋 Quản lý
+                                        </button>
+                                        <button
+                                            className="btn"
+                                            style={{ flex: 1, backgroundColor: '#fee2e2', color: '#dc2626', borderColor: '#fecaca' }}
+                                            onClick={() => handleDeleteTeam(team.id)}
+                                        >
+                                            ✕ Xóa
+                                        </button>
+                                    </div>
                                 )}
                             </div>
                         ))}

@@ -1,9 +1,11 @@
 import { useMemo, useState, useEffect } from "react";
 import Layout from "../components/Layout";
 import KanbanBoard from "../components/KanbanBoard";
-import api from "../api"; // Custom axios instance
+import api from "../api"; // Instance axios đã được cấu hình (base URL, auth header)
+import EmptyState from "../components/EmptyState";
 
 export default function Dashboard() {
+  // State lưu trữ các con số thống kê tổng quan
   const [statsData, setStatsData] = useState({
     active_courses: 0,
     active_tasks: 0,
@@ -11,27 +13,28 @@ export default function Dashboard() {
     gpa: "N/A"
   });
 
-  const [tasks, setTasks] = useState([]);
-  const [notices, setNotices] = useState([]);
+  const [tasks, setTasks] = useState([]); // Danh sách nhiệm vụ thực tế
+  const [notices, setNotices] = useState([]); // Danh sách thông báo mới nhất
 
   useEffect(() => {
-    // 1. Fetch Stats
+    // 1. Lấy thống kê cá nhân (số môn, số task, thông báo)
     api.get("/dashboard/me/stats")
       .then(res => setStatsData(res.data))
       .catch(err => console.error("Failed to fetch dashboard stats", err));
 
-    // 2. Fetch Tasks (Timeline)
+    // 2. Lấy danh sách nhiệm vụ của tôi (cho phần Timeline)
     api.get("/workspace/tasks/me/list?limit=5")
       .then(res => setTasks(res.data))
       .catch(err => console.error("Failed to fetch tasks", err));
 
-    // 3. Fetch Notifications
+    // 3. Lấy các thông báo mới nhất (giới hạn 3)
     api.get("/notifications/?limit=3")
       .then(res => setNotices(res.data))
       .catch(err => console.error("Failed to fetch notifications", err));
 
   }, []);
 
+  // Định dạng dữ liệu thống kê để hiển thị lên UI card
   const stats = useMemo(
     () => [
       { label: "Môn đang học", value: statsData.active_courses },
@@ -42,19 +45,21 @@ export default function Dashboard() {
     [statsData]
   );
 
+  // Định dạng dữ liệu nhiệm vụ cho phần Timeline mini
   const timeline = useMemo(
     () => tasks.map(t => ({
       id: t.id,
       title: t.title,
-      time: t.due_date ? new Date(t.due_date).toLocaleDateString() : "No deadline",
-      status: t.status.toLowerCase().replace(" ", "")
+      time: t.due_date ? new Date(t.due_date).toLocaleDateString() : "Không có hạn",
+      status: (t.status || "todo").toLowerCase().replace(/\s/g, "")
     })),
     [tasks]
   );
 
 
   return (
-    <Layout title="Dashboard">
+    <Layout title="Bảng điều khiển">
+      {/* Phần hiển thị các thẻ thống kê nhanh */}
       <div className="stats">
         {stats.map((s, i) => (
           <div key={i} className="stat-card">
@@ -65,38 +70,48 @@ export default function Dashboard() {
       </div>
 
       <div className="dash-grid">
+        {/* Cột trái: Timeline các nhiệm vụ sắp tới */}
         <section className="card">
-          <h3 style={{ marginBottom: 12 }}>Timeline</h3>
+          <h3 style={{ marginBottom: 12 }}>Tiến độ nhiệm vụ</h3>
           <div className="mini-timeline">
-            {timeline.map((t) => (
-              <div key={t.id} className="mini-item">
-                <div className={`dot ${t.status}`} />
-                <div className="mini-body">
-                  <div className="mini-title">{t.title}</div>
-                  <div className="mini-time">{t.time}</div>
+            {timeline.length === 0 ? (
+              <EmptyState icon="Task" title="Chưa có timeline" message="Các nhiệm vụ sắp tới của bạn sẽ xuất hiện tại đây." />
+            ) : (
+              timeline.map((t) => (
+                <div key={t.id} className="mini-item">
+                  <div className={`dot ${t.status}`} />
+                  <div className="mini-body">
+                    <div className="mini-title">{t.title}</div>
+                    <div className="mini-time">{t.time}</div>
+                  </div>
+                  <span className={`tag ${t.status}`}>
+                    {t.status === "done" ? "Hoàn thành" : "Sắp tới"}
+                  </span>
                 </div>
-                <span className={`tag ${t.status}`}>
-                  {t.status === "done" ? "Hoàn thành" : "Sắp tới"}
-                </span>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </section>
 
+        {/* Cột phải: Danh sách thông báo mới nhất */}
         <section className="card">
-          <h3 style={{ marginBottom: 12 }}>Thông báo</h3>
+          <h3 style={{ marginBottom: 12 }}>Thông báo mới</h3>
           <div className="notice-list">
-            {notices.map((n) => (
-              <div key={n.id} className="notice-item">
-                <div className="notice-title">{n.title}</div>
-                <div className="notice-time">{n.time}</div>
-              </div>
-            ))}
+            {notices.length === 0 ? (
+              <EmptyState icon="Notice" title="Không có thông báo" message="Bạn hiện không có thông báo mới nào." />
+            ) : (
+              notices.map((n) => (
+                <div key={n.id} className="notice-item">
+                  <div className="notice-title">{n.content}</div>
+                  <div className="notice-time">{new Date(n.created_at).toLocaleString()}</div>
+                </div>
+              ))
+            )}
           </div>
         </section>
       </div>
 
-      {/* ✅ Kanban */}
+      {/* Tích hợp bảng Kanban của nhóm người dùng đang tham gia */}
       <KanbanBoard teamId={statsData.team_id} />
     </Layout>
   );

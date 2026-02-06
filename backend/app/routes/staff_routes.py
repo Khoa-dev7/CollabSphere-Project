@@ -14,6 +14,7 @@ router = APIRouter()
 
 @router.post("/import-subjects", response_model=List[SubjectOut], dependencies=[Depends(PermissionChecker(Permissions.MANAGE_ACADEMIC_DATA))])
 def import_subjects(file: UploadFile = File(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """API nhập danh sách môn học từ file Excel. Yêu cầu quyền MANAGE_ACADEMIC_DATA."""
     return staff_service.import_subjects_from_excel(db, file)
 
 @router.get("/subjects", response_model=List[SubjectOut])
@@ -168,6 +169,16 @@ def get_available_students(class_id: int, db: Session = Depends(get_db), current
         if not membership:
             raise HTTPException(status_code=403, detail="Bạn không thuộc lớp học này")
     
+    # Staff/Admin logic: students NOT in any class
+    if current_user.role in ["Admin", "Staff"]:
+        enrolled_student_ids = [cm.user_id for cm in db.query(ClassMember).all()]
+        available_students = db.query(User).filter(
+            User.role == "Student",
+            User.id.not_in(enrolled_student_ids) if enrolled_student_ids else True
+        ).all()
+        return available_students
+
+    # Lecturer/Student logic: students in class but NOT in team
     # 1. Get all students enrolled in this class
     class_member_ids = [
         cm.user_id for cm in db.query(ClassMember).filter(ClassMember.class_id == class_id).all()
@@ -233,7 +244,7 @@ def remove_student(class_id: int, student_id: int, db: Session = Depends(get_db)
 
 @router.post("/classes/{class_id}/enroll")
 def enroll_in_class(class_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Allow students to enroll themselves in a class"""
+    """API cho phép sinh viên tự đăng ký vào một lớp học."""
     from app.models.project_models import Class, ClassMember
     
     # Check if user is a student

@@ -3,31 +3,26 @@ import Layout from "../components/Layout";
 import api from "../api";
 
 export default function Courses() {
-  const [courses, setCourses] = useState([]);
+  const [courses, setCourses] = useState([]); // Danh sách các môn học (Subjects)
 
   useEffect(() => {
-    // Fetch both classes (for enrollment status) and all subjects
+    // Lấy thông tin lớp học và toàn bộ danh sách môn học
     Promise.all([
       api.get("/staff/classes/me").catch(err => ({ data: [] })),
       api.get("/staff/subjects").catch(err => ({ data: [] }))
     ]).then(([classRes, subjectRes]) => {
-      const myClasses = classRes.data || [];
       const allSubjects = subjectRes.data || [];
 
-      // If user has classes, we could prioritize them, but the page is "Available Subjects"
-      // Let's display ALL subjects, but mark enrolled ones?
-      // Or simply list all subjects as requested.
-
-      // Map Subject to UI format
+      // Chuyển đổi dữ liệu Subject sang định dạng hiển thị cho Syllabus
       const mappedSubjects = allSubjects.map(s => ({
         id: s.code,
         name: s.name,
-        teacher: "Khoa/Bộ môn", // Generic
-        credits: 3, // Default or from DB if available
+        teacher: "Khoa/Bộ môn",
+        credits: 3,
         status: "Đang mở",
         syllabus: {
           overview: s.description || "Chưa có mô tả.",
-          outcomes: [],
+          outcomes: [], // Dữ liệu giả lập
           weeks: [],
           grading: [],
           materials: []
@@ -39,27 +34,23 @@ export default function Courses() {
       .catch(err => console.error("Failed to fetch data", err));
   }, []);
 
-  const _unused = useMemo(
-    () => [],
-    []
-  );
+  const [q, setQ] = useState(""); // Từ khóa tìm kiếm
+  const [activeId, setActiveId] = useState(""); // ID môn học đang được xem
+  const [tab, setTab] = useState("overview"); // Tab hiện tại: overview | outcomes | weeks | grading | materials
 
-
-  const [q, setQ] = useState("");
-  const [activeId, setActiveId] = useState(courses[0]?.id || "");
-  const [tab, setTab] = useState("overview"); // overview | outcomes | weeks | grading | materials
-
+  // Lọc danh sách môn học theo từ khóa tìm kiếm
   const filtered = courses.filter((c) => {
     const s = (c.id + " " + c.name + " " + c.teacher).toLowerCase();
     return s.includes(q.toLowerCase());
   });
 
+  // Môn học đang hiển thị chi tiết (ưu tiên activeId, nếu không lấy môn đầu tiên filtered)
   const active = courses.find((c) => c.id === activeId) || filtered[0];
 
   return (
     <Layout title="Môn học & Syllabus">
       <div className="grid-2col">
-        {/* Left: list */}
+        {/* Cột trái: Danh sách các môn học có thể chọn */}
         <section className="card">
           <div className="row-between">
             <h3>Danh sách môn</h3>
@@ -75,7 +66,7 @@ export default function Courses() {
             {filtered.map((c) => (
               <button
                 key={c.id}
-                className={`course-item ${c.id === activeId ? "active" : ""}`}
+                className={`course-item ${c.id === (active?.id) ? "active" : ""}`}
                 onClick={() => {
                   setActiveId(c.id);
                   setTab("overview");
@@ -100,7 +91,7 @@ export default function Courses() {
           </div>
         </section>
 
-        {/* Right: syllabus */}
+        {/* Cột phải: Hiển thị chi tiết Syllabus cho môn được chọn */}
         <section className="card">
           {!active ? (
             <div style={{ opacity: 0.7 }}>Chọn 1 môn để xem syllabus.</div>
@@ -117,6 +108,7 @@ export default function Courses() {
                 </div>
               </div>
 
+              {/* Các tab chuyển đổi nội dung Syllabus */}
               <div className="syllabus-tabs">
                 <button className={`tab ${tab === "overview" ? "active" : ""}`} onClick={() => setTab("overview")}>
                   Tổng quan
@@ -143,7 +135,7 @@ export default function Courses() {
 
               {tab === "outcomes" && (
                 <ul className="syllabus-list">
-                  {active.syllabus.outcomes.map((x, i) => (
+                  {active.syllabus.outcomes.length === 0 ? <li>Chưa cập nhật thông tin.</li> : active.syllabus.outcomes.map((x, i) => (
                     <li key={i}>✅ {x}</li>
                   ))}
                 </ul>
@@ -158,7 +150,7 @@ export default function Courses() {
                     </tr>
                   </thead>
                   <tbody>
-                    {active.syllabus.weeks.map((w) => (
+                    {active.syllabus.weeks.length === 0 ? <tr><td colSpan="2" style={{ textAlign: 'center' }}>Chưa cập nhật nội dung tuần học.</td></tr> : active.syllabus.weeks.map((w) => (
                       <tr key={w.w}>
                         <td>Tuần {w.w}</td>
                         <td>{w.topic}</td>
@@ -168,6 +160,7 @@ export default function Courses() {
                 </table>
               )}
 
+              {/* ... dán nhãn tương tự cho các tab khác ... */}
               {tab === "grading" && (
                 <table className="table">
                   <thead>
@@ -177,7 +170,7 @@ export default function Courses() {
                     </tr>
                   </thead>
                   <tbody>
-                    {active.syllabus.grading.map((g, i) => (
+                    {active.syllabus.grading.length === 0 ? <tr><td colSpan="2" style={{ textAlign: 'center' }}>Chưa cập nhật biểu điểm.</td></tr> : active.syllabus.grading.map((g, i) => (
                       <tr key={i}>
                         <td>{g.name}</td>
                         <td>{g.weight}</td>
@@ -189,7 +182,7 @@ export default function Courses() {
 
               {tab === "materials" && (
                 <ul className="syllabus-list">
-                  {active.syllabus.materials.map((m, i) => (
+                  {active.syllabus.materials.length === 0 ? <li>Chưa có tài liệu đính kèm.</li> : active.syllabus.materials.map((m, i) => (
                     <li key={i}>
                       📎 <a href={m.href}>{m.label}</a>
                     </li>

@@ -5,12 +5,15 @@ backend/*.pyc
 backend/*.db
 backend/.env
 backend/upload/
+backend/app/uploads/
+backend/fix_db.py
 
 # Frontend
 frontend/node_modules/
 frontend/dist/
 frontend/.env
 frontend/.env.local
+frontend/.vite/
 
 # General
 .DS_Store
@@ -20,3 +23,4 @@ frontend/.env.local
 __pycache__/
 node_modules/
 venv/
+temp_clone/

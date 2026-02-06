@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import Layout from "../components/Layout";
 import api from "../api";
+import EmptyState from "../components/EmptyState";
 
 export default function Documents() {
     const [resources, setResources] = useState([]);
@@ -86,10 +87,11 @@ export default function Documents() {
     return (
         <Layout title="Tài liệu & Tài nguyên">
             {!teamId && !loading ? (
-                <div className="card" style={{ textAlign: "center", padding: 40 }}>
-                    <h3>Bạn chưa tham gia nhóm nào.</h3>
-                    <p>Tham gia nhóm để xem và chia sẻ tài liệu.</p>
-                </div>
+                <EmptyState
+                    icon="Team"
+                    title="Chưa có nhóm"
+                    message="Bạn chưa tham gia nhóm nào. Hãy tham gia nhóm để chia sẻ tài liệu."
+                />
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                     <div className="card row-between">
@@ -116,7 +118,11 @@ export default function Documents() {
                         {loading ? (
                             <div style={{ textAlign: 'center', padding: 20 }}>Đang tải...</div>
                         ) : resources.length === 0 ? (
-                            <div style={{ textAlign: 'center', padding: 40, opacity: 0.5 }}>Chưa có tài liệu nào trong nhóm này.</div>
+                            <EmptyState
+                                icon="Doc"
+                                title="Chưa có tài liệu"
+                                message="Nhóm của bạn hiện chưa có tài liệu nào. Hãy tải lên tài liệu đầu tiên!"
+                            />
                         ) : (
                             <table className="table">
                                 <thead>

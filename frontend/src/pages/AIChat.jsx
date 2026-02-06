@@ -3,15 +3,17 @@ import Layout from "../components/Layout";
 import api from "../api";
 
 export default function AIChat() {
+    // Lưu trữ lịch sử tin nhắn
     const [messages, setMessages] = useState([
         { role: "ai", content: "Xin chào! Tôi là trợ lý AI của CollabSphere. Tôi có thể giúp bạn lên ý tưởng (Brainstorming), cung cấp hướng dẫn (Guidance) hoặc giải đáp các thắc mắc chung. Hôm nay bạn cần giúp gì?" }
     ]);
-    const [input, setInput] = useState("");
-    const [loading, setLoading] = useState(false);
-    const [mode, setMode] = useState("chat"); // chat, brainstorm, guidance
-    const [teamId, setTeamId] = useState(null);
+    const [input, setInput] = useState(""); // Nội dung người dùng nhập
+    const [loading, setLoading] = useState(false); // Trạng thái AI đang xử lý
+    const [mode, setMode] = useState("chat"); // Chế độ: chat (trò chuyện), brainstorm (lên ý tưởng), guidance (hướng dẫn)
+    const [teamId, setTeamId] = useState(null); // ID của nhóm (để AI hiểu bối cảnh dự án)
     const messagesEndRef = useRef(null);
 
+    // Tự động cuộn xuống cuối khi có tin nhắn mới
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
@@ -21,6 +23,7 @@ export default function AIChat() {
     }, [messages]);
 
     useEffect(() => {
+        // Lấy thông tin nhóm của tôi để AI có context
         const fetchTeamId = async () => {
             try {
                 const res = await api.get("/dashboard/me/stats");
@@ -39,12 +42,14 @@ export default function AIChat() {
         const textToSend = customInput || input;
         if (!textToSend.trim() || loading) return;
 
+        // Thêm tin nhắn của người dùng vào giao diện ngay lập tức
         const userMsg = { role: "user", content: textToSend };
         setMessages(prev => [...prev, userMsg]);
         setInput("");
         setLoading(true);
 
         try {
+            // Xác định endpoint API dựa trên chế độ đang chọn
             let endpoint = "/ai/chat";
             if (mode === "brainstorm") endpoint = "/ai/brainstorm";
             if (mode === "guidance") endpoint = "/ai/guidance";
@@ -54,6 +59,7 @@ export default function AIChat() {
                 team_id: teamId
             });
 
+            // Hiển thị câu trả lời từ AI
             setMessages(prev => [...prev, { role: "ai", content: res.data.response }]);
         } catch (err) {
             console.error("AI Error:", err);
@@ -137,7 +143,7 @@ export default function AIChat() {
                                 {m.content}
                             </div>
                             <small style={{ marginTop: 4, color: '#94a3b8', fontSize: 10 }}>
-                                {m.role === 'user' ? 'Bạn' : 'AI Assistant'}
+                                {m.role === 'user' ? 'Bạn' : 'Trợ lý AI'}
                             </small>
                         </div>
                     ))}

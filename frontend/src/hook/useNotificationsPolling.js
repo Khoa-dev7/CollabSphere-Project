@@ -15,14 +15,27 @@ export function useNotificationsPolling(intervalMs = 10000) {
 
     try {
       const res = await api.get("/notifications/?limit=10");
-      // Backend returns list of Notification objects
+      // Backend returns list of Notification objects with fields: id, content, type, is_read, created_at, related_link
       // Frontend expects { id, title, desc, time, read }
+      const typeToTitle = {
+        'success': '✅ Thành công',
+        'warning': '⚠️ Cảnh báo',
+        'info': 'ℹ️ Thông tin',
+        'error': '❌ Lỗi'
+      };
+
       const mapped = res.data.map(n => ({
         id: n.id,
-        title: n.title,
-        desc: n.message,
-        time: new Date(n.created_at).toLocaleTimeString(), // Simple format
-        read: n.is_read
+        title: typeToTitle[n.type] || 'Thông báo',
+        desc: n.content,
+        time: new Date(n.created_at).toLocaleString('vi-VN', {
+          hour: '2-digit',
+          minute: '2-digit',
+          day: '2-digit',
+          month: '2-digit'
+        }),
+        read: n.is_read,
+        link: n.related_link
       }));
       setItems(mapped);
     } catch (err) {

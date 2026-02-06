@@ -12,25 +12,43 @@ router = APIRouter()
 
 @router.get("/me", response_model=UserOut)
 def get_me(current_user: User = Depends(get_current_user)):
+    """
+    Lấy thông tin cá nhân của người dùng hiện tại (người dùng đang đăng nhập).
+    """
     return current_user
 
 @router.put("/me", response_model=UserOut)
 def update_me(user_in: UserUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """
+    Cập nhật thông tin cá nhân (họ tên, email, bio...) của chính mình.
+    """
     return user_service.update_user_profile(db, current_user.id, user_in)
 
 @router.get("/", response_model=List[UserOut], dependencies=[Depends(PermissionChecker(Permissions.MANAGE_USERS))])
 def list_users(role: str = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    """
+    API dành cho Admin/Staff: Xem danh sách toàn bộ người dùng trong hệ thống (có thể lọc theo vai trò).
+    """
     return user_service.get_users(db, skip, limit, role)
 
 @router.get("/{user_id}", response_model=UserOut, dependencies=[Depends(PermissionChecker(Permissions.MANAGE_USERS))])
 def view_user(user_id: int, db: Session = Depends(get_db)):
+    """
+    Admin: Xem thông tin chi tiết của một người dùng bất kỳ qua ID.
+    """
     return user_service.get_user_by_id(db, user_id)
 
 @router.put("/{user_id}", response_model=UserOut, dependencies=[Depends(PermissionChecker(Permissions.MANAGE_USERS))])
 def admin_update_user(user_id: int, user_in: UserUpdate, db: Session = Depends(get_db)):
+    """
+    Admin: Chỉnh sửa thông tin hồ sơ của người dùng khác.
+    """
     return user_service.update_user_profile(db, user_id, user_in)
 
 @router.delete("/{user_id}", dependencies=[Depends(PermissionChecker(Permissions.MANAGE_USERS))])
 def delete_user(user_id: int, db: Session = Depends(get_db)):
+    """
+    Admin: Xóa người dùng khỏi hệ thống.
+    """
     user_service.delete_user(db, user_id)
     return {"message": "Xóa người dùng thành công"}

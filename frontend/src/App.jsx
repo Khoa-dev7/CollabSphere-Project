@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
-/* Pages */
+/* Import các trang (Pages) của ứng dụng */
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import Team from "./pages/Team";
@@ -22,81 +22,81 @@ import Meeting from "./pages/Meeting";
 import AIChat from "./pages/AIChat";
 import StudentGrades from "./pages/StudentGrades";
 
-// Import Login từ module (hoặc copy ra folder pages nếu muốn structure gọn hơn)
+// Import các trang từ module đăng nhập/đăng ký
 import Login from "./modules/login-ui/src/pages/Login";
 import Register from "./modules/login-ui/src/pages/Register";
-
-// nếu bạn có trang Notifications riêng:
-// import NotificationsPage from "./pages/Notifications";
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Auth Routes */}
+        {/* Các tuyến đường liên quan đến Xác thực (Auth) */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/logout" element={<Logout />} />
 
-        {/* Dashboard */}
+        {/* Trang chủ - Bảng điều khiển */}
         <Route path="/" element={<Dashboard />} />
 
-        {/* Profile */}
+        {/* Trang cá nhân */}
         <Route path="/profile" element={<Profile />} />
 
-        {/* Team */}
+        {/* Nhóm của tôi (dành cho Sinh viên/Trưởng nhóm) */}
         <Route path="/team" element={<Team />} />
 
-        {/* Chat */}
+        {/* Chat nội bộ nhóm */}
         <Route path="/chat" element={<Chat />} />
 
-        {/* Peer Review */}
+        {/* Đánh giá đồng đẳng (Peer Review) */}
         <Route path="/peer-review" element={<PeerReview />} />
 
-        {/* Documents */}
+        {/* Quản lý tài liệu dự án */}
         <Route path="/documents" element={<Documents />} />
 
-        {/* Rubrics */}
+        {/* Quản lý Rubric điểm */}
         <Route path="/rubrics" element={<Rubrics />} />
 
-        {/* Admin */}
+        {/* Quản trị hệ thống (Admin/Staff) */}
         <Route path="/admin" element={<Admin />} />
 
-        {/* Activity Logs */}
+        {/* Nhật ký hoạt động */}
         <Route path="/activity" element={<Activity />} />
 
-        {/* Workspace */}
+        {/* Không gian làm việc - Kanban Board */}
         <Route path="/workspace" element={<Workspace />} />
 
-        {/* Teams */}
+        {/* Quản lý danh sách các nhóm (dành cho Giảng viên) */}
         <Route path="/teams" element={<Teams />} />
+
+        {/* Bảng trắng vẽ nhóm */}
         <Route path="/whiteboard" element={<Whiteboard />} />
+
+        {/* Họp trực tuyến */}
         <Route path="/meeting" element={<Meeting />} />
+
+        {/* Trợ lý AI CollabSphere */}
         <Route path="/ai-chat" element={<AIChat />} />
 
-        {/* Timeline */}
+        {/* Timeline dự án (Biểu đồ Gantt rút gọn) */}
         <Route path="/timeline" element={<Timeline />} />
 
-        {/* Gantt */}
+        {/* Biểu đồ Gantt chi tiết */}
         <Route path="/gantt" element={<Gantt />} />
 
-        {/* Grading */}
+        {/* Quản lý bảng điểm & chấm điểm */}
         <Route path="/grading" element={<GradingPage />} />
         <Route path="/my-grades" element={<StudentGrades />} />
 
-        {/* Courses + Syllabus (PHAN-49) */}
+        {/* Danh sách môn học & Syllabus */}
         <Route path="/courses" element={<Courses />} />
 
-        {/* Notifications page (nếu dùng) */}
-        {/* <Route path="/notifications" element={<NotificationsPage />} /> */}
-
-        {/* Fallback 404 (optional nhưng rất nên có) */}
+        {/* Xử lý các đường dẫn không tồn tại (404 Not Found) */}
         <Route
           path="*"
           element={
             <div style={{ padding: 40 }}>
               <h2>404</h2>
-              <p>Trang không tồn tại.</p>
+              <p>Trang không tồn tại hoặc bạn không có quyền truy cập.</p>
             </div>
           }
         />

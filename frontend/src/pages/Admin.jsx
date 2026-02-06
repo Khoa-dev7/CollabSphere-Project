@@ -2,59 +2,28 @@ import { useState, useEffect, useRef } from "react";
 import Layout from "../components/Layout";
 import api from "../api";
 
-// ClassRow component with expandable student list
+/**
+ * Component hiển thị một dòng thông tin lớp học trong bảng quản lý.
+ * Cho phép mở rộng để xem danh sách sinh viên, thêm/xóa sinh viên và đổi giảng viên.
+ */
 function ClassRow({ classData, onRefresh }) {
-    const [expanded, setExpanded] = useState(false);
-    const [students, setStudents] = useState([]);
-    const [loadingStudents, setLoadingStudents] = useState(false);
-    const [showAddModal, setShowAddModal] = useState(false);
-    const [availableStudents, setAvailableStudents] = useState([]);
-    const [selectedStudentId, setSelectedStudentId] = useState("");
-    const [adding, setAdding] = useState(false);
+    const [expanded, setExpanded] = useState(false); // Trạng thái đóng/mở rộng dòng
+    const [students, setStudents] = useState([]); // Danh sách sinh viên thuộc lớp
+    const [loadingStudents, setLoadingStudents] = useState(false); // Trạng thái tải SV
+    const [showAddModal, setShowAddModal] = useState(false); // Hiển thị modal thêm SV
+    const [availableStudents, setAvailableStudents] = useState([]); // Danh sách SV có thể thêm
+    const [selectedStudentId, setSelectedStudentId] = useState(""); // SV được chọn để thêm
+    const [adding, setAdding] = useState(false); // Trạng thái đang thực hiện thêm SV
 
-    // Lecturer management states
+    // Trạng thái quản lý giảng viên phụ trách lớp
     const [showChangeLecturerModal, setShowChangeLecturerModal] = useState(false);
     const [lecturers, setLecturers] = useState([]);
     const [selectedLecturerId, setSelectedLecturerId] = useState("");
     const [changingLecturer, setChangingLecturer] = useState(false);
 
+    // Lấy danh sách sinh viên đã đăng ký vào lớp này
     const fetchStudents = async () => {
-        // if (expanded || students.length > 0) return; // Original line
-        // The original line was `if (expanded || students.length > 0) return;`
-        // The instruction implies removing `expanded` from the condition, but also that `students.length > 0` should be removed.
-        // Given the context of refreshing the list after add/remove, `students.length > 0` should also be removed.
-        // If the list is already loaded, we still want to refresh it if `fetchStudents` is called.
-        // So, the condition should be removed entirely for `fetchStudents` to always fetch when called.
-        // However, the instruction provided `if (students.length > 0) return;` which means it should only fetch if students are not loaded.
-        // Let's stick to the provided code snippet for `fetchStudents` which is `if (students.length > 0) return;`
-        if (students.length > 0 && !expanded) return; // Re-evaluate: The instruction provided `if (students.length > 0) return;`
-        // but the original had `if (expanded || students.length > 0) return;`.
-        // The goal is to fetch students when expanding OR when explicitly called to refresh.
-        // If `students.length > 0` is kept, it won't refresh.
-        // Let's assume the instruction meant to remove the `expanded` check for the initial fetch,
-        // but allow subsequent fetches to refresh.
-        // The most robust way is to remove the `students.length > 0` check here,
-        // and let `handleToggle` decide when to call it.
-        // The instruction's `fetchStudents` snippet is:
-        // `const fetchStudents = async () => { if (students.length > 0) return; ... }`
-        // This means it will only fetch if `students` is empty. This is problematic for refreshing.
-        // I will interpret the instruction as: `fetchStudents` should always fetch when called.
-        // The `handleToggle` will decide when to call it.
-        // The `handleAddStudent` and `handleRemoveStudent` will call it directly to refresh.
-        // So, the `if (students.length > 0) return;` should be removed from `fetchStudents`.
-        // Let's re-read the instruction carefully:
-        // `const fetchStudents = async () => { if (students.length > 0) return; ... }`
-        // This is explicitly given. I must follow it.
-        // This means `fetchStudents` will only fetch if `students` is empty.
-        // This is a contradiction with the need to refresh after add/remove.
-        // I will assume the user wants to keep the `students.length > 0` check for the initial load
-        // but for refreshing, they will explicitly re-fetch.
-        // The provided snippet for `handleAddStudent` and `handleRemoveStudent` already includes
-        // `const res = await api.get(...)` to re-fetch, so the `if (students.length > 0) return;`
-        // in `fetchStudents` is fine for its original purpose (lazy loading on expand).
-        // The `fetchStudents` in `handleToggle` is for initial load.
-        // The `fetchStudents` in `handleAddStudent` and `handleRemoveStudent` is a direct API call, not using the `fetchStudents` helper.
-        // So, the provided `fetchStudents` snippet is correct for its intended use within `handleToggle`.
+        if (students.length > 0 && !expanded) return;
 
         setLoadingStudents(true);
         try {
@@ -68,6 +37,7 @@ function ClassRow({ classData, onRefresh }) {
         }
     };
 
+    // Lấy danh sách SV "rảnh" (chưa thuộc lớp này) để thêm vào lớp
     const fetchAvailableStudents = async () => {
         try {
             const res = await api.get(`/staff/classes/${classData.id}/available-students`);
@@ -77,6 +47,7 @@ function ClassRow({ classData, onRefresh }) {
         }
     };
 
+    // Lấy danh sách toàn bộ Giảng viên để đổi người phụ trách
     const fetchLecturers = async () => {
         try {
             const res = await api.get('/staff/users');
@@ -88,6 +59,7 @@ function ClassRow({ classData, onRefresh }) {
         }
     };
 
+    // Gửi yêu cầu cập nhật giảng viên phụ trách lớp
     const handleChangeLecturer = async () => {
         if (!selectedLecturerId) {
             alert("Vui lòng chọn giảng viên");
@@ -109,6 +81,7 @@ function ClassRow({ classData, onRefresh }) {
         }
     };
 
+    // Xử lý sự kiện nhấn vào dòng để đóng/mở chi tiết
     const handleToggle = () => {
         if (!expanded) {
             fetchStudents();
@@ -116,11 +89,13 @@ function ClassRow({ classData, onRefresh }) {
         setExpanded(!expanded);
     };
 
+    // Mở modal thêm sinh viên và lấy dữ liệu SV khả dụng
     const handleOpenAddModal = () => {
         fetchAvailableStudents();
         setShowAddModal(true);
     };
 
+    // Gửi yêu cầu thêm sinh viên được chọn vào lớp
     const handleAddStudent = async () => {
         if (!selectedStudentId) {
             alert("Vui lòng chọn sinh viên");
@@ -133,7 +108,7 @@ function ClassRow({ classData, onRefresh }) {
             alert("Đã thêm sinh viên vào lớp!");
             setShowAddModal(false);
             setSelectedStudentId("");
-            // Refresh student list
+            // Làm mới danh sách sinh viên hiển thị tại chỗ
             const res = await api.get(`/staff/classes/${classData.id}/students`);
             setStudents(res.data || []);
             if (onRefresh) onRefresh();
@@ -144,13 +119,14 @@ function ClassRow({ classData, onRefresh }) {
         }
     };
 
+    // Xử lý xóa (hủy đăng ký) sinh viên khỏi lớp
     const handleRemoveStudent = async (studentId) => {
         if (!confirm("Bạn có chắc muốn xóa sinh viên này khỏi lớp?")) return;
 
         try {
             await api.delete(`/staff/classes/${classData.id}/remove-student/${studentId}`);
             alert("Đã xóa sinh viên khỏi lớp!");
-            // Refresh student list
+            // Làm mới danh sách sinh viên
             const res = await api.get(`/staff/classes/${classData.id}/students`);
             setStudents(res.data || []);
             if (onRefresh) onRefresh();
@@ -183,7 +159,7 @@ function ClassRow({ classData, onRefresh }) {
             {expanded && (
                 <tr>
                     <td colSpan="7" style={{ background: '#f8fafc', padding: 20 }}>
-                        {/* Lecturer Info Section */}
+                        {/* Phần thông tin Giảng viên phụ trách */}
                         <div style={{ marginBottom: 20, padding: 16, background: '#fff', borderRadius: 8, border: '1px solid #e2e8f0' }}>
                             <div className="row-between">
                                 <div>
@@ -206,7 +182,7 @@ function ClassRow({ classData, onRefresh }) {
                             </div>
                         </div>
 
-                        {/* Students Section */}
+                        {/* Phần danh sách Sinh viên trong lớp */}
                         <div className="row-between" style={{ marginBottom: 12 }}>
                             <h5 style={{ margin: 0, color: '#334155' }}>📋 Danh sách sinh viên</h5>
                             <button className="btn btn-sm primary" onClick={(e) => { e.stopPropagation(); handleOpenAddModal(); }}>
@@ -255,7 +231,7 @@ function ClassRow({ classData, onRefresh }) {
                             </table>
                         )}
 
-                        {/* Add Student Modal */}
+                        {/* Modal: Thêm sinh viên từ hệ thống vào lớp */}
                         {showAddModal && (
                             <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
                                 <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 500 }}>
@@ -295,7 +271,7 @@ function ClassRow({ classData, onRefresh }) {
                             </div>
                         )}
 
-                        {/* Change Lecturer Modal */}
+                        {/* Modal: Đổi giảng viên quản lý lớp học */}
                         {showChangeLecturerModal && (
                             <div className="modal-overlay" onClick={() => setShowChangeLecturerModal(false)}>
                                 <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 500 }}>
@@ -341,11 +317,15 @@ function ClassRow({ classData, onRefresh }) {
     );
 }
 
+/**
+ * Component chính cho trang Quản trị (Admin/Staff/Head).
+ * Phân quyền hiển thị các Tab chức năng tương ứng với người dùng.
+ */
 export default function Admin() {
     const role = localStorage.getItem("role") || "";
     const r = role.toLowerCase();
 
-    // Determine default tab based on role
+    // Xác định Tab mặc định dựa trên vai trò người dùng
     const getDefaultTab = () => {
         if (r === "admin") return "users";
         if (r === "staff") return "academic";
@@ -353,13 +333,14 @@ export default function Admin() {
         return "users";
     };
 
-    const [activeTab, setActiveTab] = useState(getDefaultTab());
-    const [loading, setLoading] = useState(false);
-    const [entities, setEntities] = useState([]);
-    const [uploading, setUploading] = useState(false);
-    const fileInputRef = useRef(null);
-    const [importRole, setImportRole] = useState("Student");
+    const [activeTab, setActiveTab] = useState(getDefaultTab()); // Tab đang hoạt động
+    const [loading, setLoading] = useState(false); // Trạng thái tải dữ liệu tab
+    const [entities, setEntities] = useState([]); // Dữ liệu của tab hiện tại (SV, Lớp, Môn học...)
+    const [uploading, setUploading] = useState(false); // Trạng thái tải lên file Excel
+    const fileInputRef = useRef(null); // Ref để trigger chọn file
+    const [importRole, setImportRole] = useState("Student"); // Vai trò khi nhập user hàng loạt
 
+    // Hàm lấy dữ liệu tương ứng với Tab được chọn từ API
     const fetchEntities = async () => {
         setLoading(true);
         try {
@@ -386,6 +367,7 @@ export default function Admin() {
         fetchEntities();
     }, [activeTab]);
 
+    // Xử lý đọc và gửi tệp Excel để nhập dữ liệu hàng loạt
     const handleImport = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -405,7 +387,7 @@ export default function Admin() {
                 headers: { "Content-Type": "multipart/form-data" }
             });
 
-            // Show detailed result for class members import
+            // Hiển thị thông báo chi tiết khi nhập danh sách sinh viên vào lớp
             if (activeTab === "class_members_import" && res.data) {
                 const { added, skipped, errors } = res.data;
                 let message = `✅ Đã thêm ${added} sinh viên vào lớp`;
@@ -425,10 +407,11 @@ export default function Admin() {
             alert(errorMsg);
         } finally {
             setUploading(false);
-            e.target.value = null;
+            e.target.value = null; // Reset input để có thể chọn lại cùng 1 file
         }
     };
 
+    // Khóa hoặc mở khóa tài khoản người dùng (Chỉ Admin)
     const handleToggleUser = async (user) => {
         try {
             await api.post(`/staff/users/${user.id}/toggle-status`);
@@ -438,6 +421,7 @@ export default function Admin() {
         }
     };
 
+    // Duyệt hoặc từ chối đề xuất dự án (Chỉ Trưởng bộ môn/Head)
     const handleApproveProject = async (projectId, status) => {
         try {
             await api.put(`/projects/${projectId}/approve?status=${status}`);
@@ -448,6 +432,9 @@ export default function Admin() {
         }
     };
 
+    /**
+     * Hàm render nội dung tương ứng với mỗi chức năng quản trị
+     */
     const renderTabContent = () => {
         switch (activeTab) {
             case "users":

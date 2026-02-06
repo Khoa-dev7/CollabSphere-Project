@@ -13,6 +13,9 @@ if settings.OPENAI_API_KEY:
     openai_client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 def call_bedrock_ai(prompt: str, context: str = ""):
+    """
+    Gọi API AWS Bedrock (Claude) để xử lý yêu cầu.
+    """
     try:
         if not settings.AWS_ACCESS_KEY_ID:
             return "Dịch vụ AI (Bedrock) chưa được cấu hình."
@@ -38,6 +41,9 @@ def call_bedrock_ai(prompt: str, context: str = ""):
         return f"Lỗi Bedrock: {str(e)}"
 
 def call_openai_ai(prompt: str, context: str = ""):
+    """
+    Gọi API OpenAI (GPT) để xử lý yêu cầu.
+    """
     try:
         if not openai_client:
             return "Dịch vụ AI (OpenAI) chưa được cấu hình."
@@ -56,6 +62,7 @@ def call_openai_ai(prompt: str, context: str = ""):
 def process_system_command(prompt: str, context: str = "", db: Session = None, team_id: int = None):
     """
     Xử lý các lệnh hệ thống dựa trên từ khóa để trợ giúp người dùng ngay cả khi không có API AI.
+    Cung cấp hướng dẫn sử dụng các tính năng cơ bản của CollabSphere.
     """
     p = prompt.lower()
     
@@ -74,6 +81,10 @@ def process_system_command(prompt: str, context: str = "", db: Session = None, t
     return None
 
 def ask_ai(prompt: str, context: str = "", db: Session = None, team_id: int = None):
+    """
+    Hàm tổng quát để tương tác với AI. 
+    Ưu tiên lệnh hệ thống, sau đó đến nhà cung cấp AI được cấu hình.
+    """
     # 1. Kiểm tra lệnh hệ thống trước
     system_response = process_system_command(prompt, context, db, team_id)
     if system_response:
@@ -89,6 +100,9 @@ def ask_ai(prompt: str, context: str = "", db: Session = None, team_id: int = No
     return "🌐 **Trợ lý CollabSphere:** Hiện tại dịch vụ AI nâng cao (GPT/Claude) chưa được cấu hình. Tuy nhiên, tôi có thể hỗ trợ bạn các lệnh hệ thống như: 'tạo task', 'quản lý nhóm', 'mốc dự án' hoặc 'tải tài liệu'. Bạn cần tôi hướng dẫn phần nào?"
 
 def save_ai_interaction(db: Session, interaction_in: AIInteractionCreate):
+    """
+    Lưu lịch sử tương tác AI vào cơ sở dữ liệu.
+    """
     db_interaction = AIInteraction(**interaction_in.dict())
     db.add(db_interaction)
     db.commit()
@@ -96,6 +110,9 @@ def save_ai_interaction(db: Session, interaction_in: AIInteractionCreate):
     return db_interaction
 
 def brainstorm_ideas(db: Session, prompt: str, user_id: int, team_id: int = None):
+    """
+    Hỗ trợ lên ý tưởng dự án.
+    """
     response = ask_ai(prompt, context="Đề xuất các ý tưởng PBL sáng tạo.", db=db, team_id=team_id)
     interaction_in = AIInteractionCreate(
         user_id=user_id, team_id=team_id, prompt=prompt, response=response, interaction_type="Brainstorming"
@@ -104,6 +121,9 @@ def brainstorm_ideas(db: Session, prompt: str, user_id: int, team_id: int = None
     return response
 
 def get_project_guidance(db: Session, prompt: str, user_id: int, team_id: int = None):
+    """
+    Hướng dẫn phương pháp làm dự án.
+    """
     response = ask_ai(prompt, context="Cung cấp hướng dẫn kỹ thuật và quản lý dự án.", db=db, team_id=team_id)
     interaction_in = AIInteractionCreate(
         user_id=user_id, team_id=team_id, prompt=prompt, response=response, interaction_type="Guidance"
@@ -112,6 +132,9 @@ def get_project_guidance(db: Session, prompt: str, user_id: int, team_id: int = 
     return response
 
 def get_task_guidance(db: Session, task_description: str, user_id: int, team_id: int = None):
+    """
+    Hướng dẫn chi tiết cách thực hiện một công việc cụ thể.
+    """
     prompt = f"Tôi nên thực hiện nhiệm vụ này như thế nào? Mô tả nhiệm vụ: {task_description}"
     response = ask_ai(prompt, context="Bạn là một cố vấn kỹ thuật. Hãy cung cấp các gợi ý thực hiện từng bước cho nhiệm vụ đã cho.", db=db, team_id=team_id)
     

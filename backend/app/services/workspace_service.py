@@ -335,8 +335,6 @@ def get_user_team_members(db: Session, user_id: int):
     # Get all members of that team
     members = db.query(User).join(TeamMember).filter(TeamMember.team_id == team_id).all()
     
-    # Return with roles from TeamMember if needed, but for now just User objects is fine
-    # (The frontend expects name, role, email)
     return members
 
 def get_team_members(db: Session, team_id: int):
@@ -375,11 +373,11 @@ def get_user_team_info(db: Session, user_id: int):
         # Standard Student Logic
         member_record = db.query(TeamMember).filter(TeamMember.user_id == user_id).first()
         if not member_record:
-            raise HTTPException(status_code=404, detail="Bạn chưa được phân vào nhóm nào")
+            return None # Return None instead of 404 for students
         
         team = db.query(Team).filter(Team.id == member_record.team_id).first()
         if not team:
-            raise HTTPException(status_code=404, detail="Không tìm thấy thông tin nhóm")
+            return None # Return None instead of 404
     
     # Get project milestones
     milestones = []

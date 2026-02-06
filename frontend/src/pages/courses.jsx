@@ -1,0 +1,205 @@
+import { useMemo, useState, useEffect } from "react";
+import Layout from "../components/Layout";
+import api from "../api";
+
+export default function Courses() {
+  const [courses, setCourses] = useState([]);
+
+  useEffect(() => {
+    // Fetch both classes (for enrollment status) and all subjects
+    Promise.all([
+      api.get("/staff/classes/me").catch(err => ({ data: [] })),
+      api.get("/staff/subjects").catch(err => ({ data: [] }))
+    ]).then(([classRes, subjectRes]) => {
+      const myClasses = classRes.data || [];
+      const allSubjects = subjectRes.data || [];
+
+      // If user has classes, we could prioritize them, but the page is "Available Subjects"
+      // Let's display ALL subjects, but mark enrolled ones?
+      // Or simply list all subjects as requested.
+
+      // Map Subject to UI format
+      const mappedSubjects = allSubjects.map(s => ({
+        id: s.code,
+        name: s.name,
+        teacher: "Khoa/Bộ môn", // Generic
+        credits: 3, // Default or from DB if available
+        status: "Đang mở",
+        syllabus: {
+          overview: s.description || "Chưa có mô tả.",
+          outcomes: [],
+          weeks: [],
+          grading: [],
+          materials: []
+        }
+      }));
+
+      setCourses(mappedSubjects);
+    })
+      .catch(err => console.error("Failed to fetch data", err));
+  }, []);
+
+  const _unused = useMemo(
+    () => [],
+    []
+  );
+
+
+  const [q, setQ] = useState("");
+  const [activeId, setActiveId] = useState(courses[0]?.id || "");
+  const [tab, setTab] = useState("overview"); // overview | outcomes | weeks | grading | materials
+
+  const filtered = courses.filter((c) => {
+    const s = (c.id + " " + c.name + " " + c.teacher).toLowerCase();
+    return s.includes(q.toLowerCase());
+  });
+
+  const active = courses.find((c) => c.id === activeId) || filtered[0];
+
+  return (
+    <Layout title="Môn học & Syllabus">
+      <div className="grid-2col">
+        {/* Left: list */}
+        <section className="card">
+          <div className="row-between">
+            <h3>Danh sách môn</h3>
+            <input
+              className="search"
+              placeholder="Tìm môn..."
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+          </div>
+
+          <div className="course-list">
+            {filtered.map((c) => (
+              <button
+                key={c.id}
+                className={`course-item ${c.id === activeId ? "active" : ""}`}
+                onClick={() => {
+                  setActiveId(c.id);
+                  setTab("overview");
+                }}
+              >
+                <div className="course-top">
+                  <b>{c.id}</b>
+                  <span className={`pill ${c.status === "Hoàn thành" ? "ok" : ""}`}>
+                    {c.status}
+                  </span>
+                </div>
+                <div className="course-name">{c.name}</div>
+                <div className="course-sub">
+                  {c.teacher} · {c.credits} tín chỉ
+                </div>
+              </button>
+            ))}
+
+            {filtered.length === 0 && (
+              <div style={{ opacity: 0.7, marginTop: 12 }}>Không tìm thấy môn.</div>
+            )}
+          </div>
+        </section>
+
+        {/* Right: syllabus */}
+        <section className="card">
+          {!active ? (
+            <div style={{ opacity: 0.7 }}>Chọn 1 môn để xem syllabus.</div>
+          ) : (
+            <>
+              <div className="row-between">
+                <div>
+                  <h3 style={{ marginBottom: 6 }}>
+                    {active.id} — {active.name}
+                  </h3>
+                  <div style={{ color: "var(--muted)" }}>
+                    {active.teacher} · {active.credits} tín chỉ
+                  </div>
+                </div>
+              </div>
+
+              <div className="syllabus-tabs">
+                <button className={`tab ${tab === "overview" ? "active" : ""}`} onClick={() => setTab("overview")}>
+                  Tổng quan
+                </button>
+                <button className={`tab ${tab === "outcomes" ? "active" : ""}`} onClick={() => setTab("outcomes")}>
+                  Chuẩn đầu ra
+                </button>
+                <button className={`tab ${tab === "weeks" ? "active" : ""}`} onClick={() => setTab("weeks")}>
+                  Tuần học
+                </button>
+                <button className={`tab ${tab === "grading" ? "active" : ""}`} onClick={() => setTab("grading")}>
+                  Đánh giá
+                </button>
+                <button className={`tab ${tab === "materials" ? "active" : ""}`} onClick={() => setTab("materials")}>
+                  Tài liệu
+                </button>
+              </div>
+
+              {tab === "overview" && (
+                <div className="syllabus-box">
+                  <p style={{ lineHeight: 1.7 }}>{active.syllabus.overview}</p>
+                </div>
+              )}
+
+              {tab === "outcomes" && (
+                <ul className="syllabus-list">
+                  {active.syllabus.outcomes.map((x, i) => (
+                    <li key={i}>✅ {x}</li>
+                  ))}
+                </ul>
+              )}
+
+              {tab === "weeks" && (
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Tuần</th>
+                      <th>Nội dung</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {active.syllabus.weeks.map((w) => (
+                      <tr key={w.w}>
+                        <td>Tuần {w.w}</td>
+                        <td>{w.topic}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              {tab === "grading" && (
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Hạng mục</th>
+                      <th>Tỷ lệ (%)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {active.syllabus.grading.map((g, i) => (
+                      <tr key={i}>
+                        <td>{g.name}</td>
+                        <td>{g.weight}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              {tab === "materials" && (
+                <ul className="syllabus-list">
+                  {active.syllabus.materials.map((m, i) => (
+                    <li key={i}>
+                      📎 <a href={m.href}>{m.label}</a>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+        </section>
+      </div>
+    </Layout>
+  );
+}

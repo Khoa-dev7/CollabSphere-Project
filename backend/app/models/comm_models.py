@@ -60,6 +60,7 @@ class ActivityLog(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     user = relationship("User")
+    team = relationship("Team", back_populates="activity_logs")
 
 class Resource(Base):
     """

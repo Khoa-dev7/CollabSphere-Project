@@ -208,7 +208,7 @@ export default function Teams() {
     };
 
     return (
-        <Layout title="Quản lý nhóm">
+        <Layout title={role === "Lecturer" ? "Quản lý nhóm" : "Danh sách nhóm"}>
             <div className="card">
                 <div className="row-between" style={{ marginBottom: 24 }}>
                     <div>
@@ -282,21 +282,59 @@ export default function Teams() {
                                     </div>
                                 </div>
 
-                                {role === "Lecturer" && (
+                                {role === "Lecturer" ? (
                                     <div style={{ display: 'flex', gap: '8px', marginTop: 12 }}>
                                         <button
+                                            className="btn primary"
+                                            style={{ flex: 1 }}
+                                            onClick={() => window.location.href = `/workspace?teamId=${team.id}`}
+                                        >
+                                            🚀 Vào Nhóm
+                                        </button>
+                                        <button
                                             className="btn"
-                                            style={{ flex: 2 }}
+                                            style={{ flex: 1 }}
                                             onClick={() => handleManageTeam(team)}
                                         >
                                             📋 Quản lý
                                         </button>
                                         <button
                                             className="btn"
-                                            style={{ flex: 1, backgroundColor: '#fee2e2', color: '#dc2626', borderColor: '#fecaca' }}
+                                            style={{ padding: '0 12px', backgroundColor: '#fee2e2', color: '#dc2626', borderColor: '#fecaca' }}
                                             onClick={() => handleDeleteTeam(team.id)}
                                         >
-                                            ✕ Xóa
+                                            ✕
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div style={{ display: 'flex', gap: '8px', marginTop: 12 }}>
+                                        <button
+                                            className="btn primary"
+                                            style={{ flex: 1 }}
+                                            onClick={() => window.location.href = `/workspace?teamId=${team.id}`}
+                                        >
+                                            🚀 Workspace
+                                        </button>
+                                        <button
+                                            className="btn"
+                                            style={{ flex: 1 }}
+                                            onClick={() => window.location.href = `/team?teamId=${team.id}`}
+                                        >
+                                            👥 Thành viên
+                                        </button>
+                                        <button
+                                            className="btn"
+                                            style={{ flex: 1 }}
+                                            onClick={() => window.location.href = `/documents?teamId=${team.id}`}
+                                        >
+                                            📂 Tài liệu
+                                        </button>
+                                        <button
+                                            className="btn"
+                                            style={{ flex: 1 }}
+                                            onClick={() => window.location.href = `/peer-review?teamId=${team.id}`}
+                                        >
+                                            ⭐ Đánh giá
                                         </button>
                                     </div>
                                 )}
@@ -373,7 +411,7 @@ export default function Teams() {
                                     <option value="">-- Chưa chọn nhóm trưởng --</option>
                                     {classStudents.map(s => (
                                         <option key={s.id} value={s.id}>
-                                            {s.full_name} ({s.username}) {s.team_name ? `[Đã có nhóm: ${s.team_name}]` : ""}
+                                            [{s.id}] {s.full_name} (@{s.username}) {s.team_name ? `[Đã có nhóm: ${s.team_name}]` : ""}
                                         </option>
                                     ))}
                                 </select>
@@ -409,7 +447,8 @@ export default function Teams() {
                                                             onChange={() => toggleMember(s.id)}
                                                         />
                                                         <span>
-                                                            {s.full_name} ({s.username})
+                                                            <code style={{ fontSize: 11, marginRight: 6 }}>#{s.id}</code>
+                                                            {s.full_name} (@{s.username})
                                                             {s.team_name && <small style={{ color: "#f59e0b", marginLeft: 8 }}>✓ {s.team_name}</small>}
                                                         </span>
                                                     </label>
@@ -459,8 +498,9 @@ export default function Teams() {
                                     teamMembers.map(member => (
                                         <div key={member.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #f1f5f9" }}>
                                             <div>
+                                                <code style={{ fontSize: 11, marginRight: 6 }}>#{member.id}</code>
                                                 <strong>{member.full_name}</strong>
-                                                <small style={{ color: "#64748b", marginLeft: 8 }}>({member.username})</small>
+                                                <small style={{ color: "#64748b", marginLeft: 8 }}>(@{member.username})</small>
                                                 {member.id === selectedTeamForManage.leader_id && (
                                                     <span style={{ marginLeft: 8, color: "#10b981", fontSize: 12 }}>👑 Nhóm trưởng</span>
                                                 )}
@@ -487,8 +527,9 @@ export default function Teams() {
                                     availableStudents.map(student => (
                                         <div key={student.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #f1f5f9" }}>
                                             <div>
+                                                <code style={{ fontSize: 11, marginRight: 6 }}>#{student.id}</code>
                                                 <strong>{student.full_name}</strong>
-                                                <small style={{ color: "#64748b", marginLeft: 8 }}>({student.username})</small>
+                                                <small style={{ color: "#64748b", marginLeft: 8 }}>(@{student.username})</small>
                                             </div>
                                             <button
                                                 className="btn primary"

@@ -1,9 +1,13 @@
 import { useMemo, useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import Layout from "../components/Layout";
 import api from "../api";
 import EmptyState from "../components/EmptyState";
 
 export default function Team() {
+  const [searchParams] = useSearchParams();
+  const urlTeamId = searchParams.get("teamId");
+
   // State lưu trữ dữ liệu
   const [members, setMembers] = useState([]); // Danh sách thành viên trong nhóm
   const [teamInfo, setTeamInfo] = useState(null); // Thông tin tổng quan của nhóm (tên, đề tài...)
@@ -15,9 +19,12 @@ export default function Team() {
 
   useEffect(() => {
     // Tải thông tin nhóm và danh sách thành viên song song
+    const teamParam = urlTeamId ? `?team_id=${urlTeamId}` : "";
+    const memberUrl = urlTeamId ? `/workspace/teams/${urlTeamId}/members` : "/workspace/teams/me/members";
+
     Promise.all([
-      api.get("/workspace/teams/me/members"),
-      api.get("/workspace/teams/me")
+      api.get(memberUrl),
+      api.get(`/workspace/teams/me${teamParam}`)
     ])
       .then(([resMembers, resInfo]) => {
         const teamData = resInfo.data;
@@ -141,7 +148,7 @@ export default function Team() {
   }
 
   return (
-    <Layout title="Nhóm của tôi">
+    <Layout title={teamInfo ? `Thành viên: ${teamInfo.name}` : "Nhóm của tôi"}>
       <div className="card">
         <div className="row-between mb-4">
           {/* Thông tin nhóm và dự án */}
@@ -189,6 +196,7 @@ export default function Team() {
         <table className="table">
           <thead>
             <tr>
+              <th>Mã SV</th>
               <th>Họ tên</th>
               <th>Vai trò</th>
               <th>Email</th>
@@ -200,6 +208,7 @@ export default function Team() {
               <tr><td colSpan={isLeader ? "4" : "3"} style={{ textAlign: 'center' }}>Đang tải...</td></tr>
             ) : filtered.map((m) => (
               <tr key={m.id}>
+                <td><code style={{ fontSize: 13 }}>{m.id}</code></td>
                 <td>{m.name}</td>
                 <td>
                   <span className={`pill ${m.role === "Leader" ? "ok" : ""}`}>

@@ -5,36 +5,52 @@ import api from "../api";
 export default function Activity() {
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [role, setRole] = useState(localStorage.getItem("role"));
-    const [teamId, setTeamId] = useState(null);
+    const [role] = useState(localStorage.getItem("role"));
 
-    useEffect(() => {
-        const fetchLogs = async () => {
-            try {
-                let endpoint = "/activity/system?limit=50";
+    const fetchLogs = async () => {
+        setLoading(true);
+        try {
+            const r = role ? role.toLowerCase() : "";
 
-                // If student, check for team logs instead
-                if (role === "Student") {
-                    const statsRes = await api.get("/dashboard/me/stats");
-                    const tid = statsRes.data.team_id;
-                    if (tid) {
-                        setTeamId(tid);
-                        endpoint = `/activity/teams/${tid}?limit=50`;
-                    } else {
-                        setLoading(false);
-                        return;
-                    }
+            // If student or lecturer, fetch logs from all their teams
+            if (r === "student" || r === "lecturer") {
+                const teamsRes = await api.get("/projects/teams");
+                const teams = teamsRes.data;
+
+                if (teams.length === 0) {
+                    setLogs([]);
+                    setLoading(false);
+                    return;
                 }
 
-                const res = await api.get(endpoint);
-                setLogs(res.data || []);
-            } catch (err) {
-                console.error("Failed to fetch activity logs", err);
-            } finally {
-                setLoading(false);
-            }
-        };
+                const promises = teams.map(team =>
+                    api.get(`/activity/teams/${team.id}?limit=20`)
+                        .then(res => res.data)
+                        .catch(err => {
+                            console.error(`Error fetching logs for team ${team.id}`, err);
+                            return [];
+                        })
+                );
 
+                const results = await Promise.all(promises);
+                const allLogs = results.flat().sort((a, b) =>
+                    new Date(b.created_at) - new Date(a.created_at)
+                );
+
+                setLogs(allLogs);
+            } else {
+                // Admin/Staff view system logs
+                const res = await api.get("/activity/system?limit=50");
+                setLogs(res.data || []);
+            }
+        } catch (err) {
+            console.error("Failed to fetch activity logs", err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
         fetchLogs();
     }, [role]);
 
@@ -50,8 +66,15 @@ export default function Activity() {
     return (
         <Layout title="Nhật ký hoạt động">
             <div className="card">
-                <h3>{role === "Student" ? "Hoạt động của nhóm" : "Lịch sử hệ thống"}</h3>
-                <p style={{ opacity: 0.7, marginBottom: 20 }}>Xem lại các thay đổi và hoạt động gần đây.</p>
+                <div className="row-between" style={{ marginBottom: 20 }}>
+                    <div>
+                        <h3>{["student", "lecturer"].includes(role?.toLowerCase()) ? "Hoạt động của các nhóm" : "Lịch sử hệ thống"}</h3>
+                        <p style={{ opacity: 0.7 }}>Xem lại các thay đổi và hoạt động gần đây.</p>
+                    </div>
+                    <button className="btn outline btn-sm" onClick={fetchLogs} disabled={loading}>
+                        {loading ? "Đang tải..." : "🔄 Cập nhật"}
+                    </button>
+                </div>
 
                 {loading ? (
                     <div style={{ textAlign: 'center', padding: 20 }}>Đang tải nhật ký...</div>
@@ -78,6 +101,20 @@ export default function Activity() {
                                         {log.actor_name || "Hệ thống"} <span style={{ fontWeight: 400, color: '#64748b' }}>đã {log.action}</span>
                                     </div>
                                     <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>
+                                        {log.team_name && (
+                                            <span style={{
+                                                display: "inline-block",
+                                                backgroundColor: "#e0f2fe",
+                                                color: "#0369a1",
+                                                padding: "2px 6px",
+                                                borderRadius: "4px",
+                                                fontSize: "11px",
+                                                fontWeight: 600,
+                                                marginRight: "6px"
+                                            }}>
+                                                {log.team_name}
+                                            </span>
+                                        )}
                                         Thực thể: <span style={{ color: 'var(--primary)', fontWeight: 500 }}>{log.entity_type} {log.entity_id ? `#${log.entity_id}` : ""}</span>
                                     </div>
                                 </div>

@@ -124,7 +124,7 @@ export default function TaskModal({ isOpen, onClose, onTaskCreated, teamId, team
                                 <option value="">Chưa phân công</option>
                                 {teamMembers.map(member => (
                                     <option key={member.id} value={member.id}>
-                                        {member.full_name || member.username}
+                                        [{member.id}] {member.full_name || member.username}
                                     </option>
                                 ))}
                             </select>

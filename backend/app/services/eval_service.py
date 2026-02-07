@@ -28,37 +28,81 @@ def submit_peer_review(db: Session, reviewer_id: int, review_in: PeerReviewCreat
         from fastapi import HTTPException
         raise HTTPException(status_code=403, detail="Cả người đánh giá và người được đánh giá phải cùng một nhóm")
 
-    # Tạo bản ghi đánh giá mới
-    db_review = PeerReview(
-        reviewer_id=reviewer_id,
-        **review_in.dict()
-    )
-    db.add(db_review)
-    db.commit()
-    db.refresh(db_review)
-    return db_review
+    # Kiểm tra xem đã có đánh giá chưa
+    existing_review = db.query(PeerReview).filter(
+        PeerReview.reviewer_id == reviewer_id,
+        PeerReview.reviewee_id == review_in.reviewee_id,
+        PeerReview.team_id == review_in.team_id
+    ).first()
+
+    if existing_review:
+        # Cập nhật đánh giá cũ
+        existing_review.score = review_in.score
+        existing_review.comment = review_in.comment
+        existing_review.created_at = func.now() # Cập nhật thời gian
+        db.add(existing_review) # Explicit add for update
+        db.commit()
+        db.refresh(existing_review)
+        return existing_review
+    else:
+        # Tạo bản ghi đánh giá mới
+        db_review = PeerReview(
+            reviewer_id=reviewer_id,
+            **review_in.dict()
+        )
+        db.add(db_review)
+        db.commit()
+        db.refresh(db_review)
+        return db_review
+
+def get_student_peer_reviews(db: Session, reviewer_id: int, team_id: int):
+    """
+    Lấy danh sách các đánh giá mà sinh viên này đã thực hiện trong một nhóm cụ thể.
+    """
+    return db.query(PeerReview).filter(
+        PeerReview.reviewer_id == reviewer_id,
+        PeerReview.team_id == team_id
+    ).all()
 
 def get_team_evaluation_summary(db: Session, team_id: int):
     """
     Lấy bản tóm tắt kết quả đánh giá đồng đẳng của toàn bộ thành viên trong nhóm.
-    Tính toán điểm trung bình và số lượng lượt đánh giá của từng người.
+    Tính toán điểm dựa trên ĐÁNH GIÁ MỚI NHẤT từ mỗi người chấm (lọc bỏ các bản ghi cũ/trùng lặp).
     """
-    # Lấy danh sách tất cả thành viên trong nhóm
+    # 1. Lấy tất cả thành viên trong nhóm
     members = db.query(User).join(TeamMember).filter(TeamMember.team_id == team_id).all()
     
+    # 2. Lấy TẤT CẢ các đánh giá của nhóm, sắp xếp giảm dần theo thời gian và ID để lấy cái mới nhất
+    all_reviews = db.query(PeerReview).filter(PeerReview.team_id == team_id)\
+        .order_by(PeerReview.created_at.desc(), PeerReview.id.desc()).all()
+
     summary = []
+    
     for member in members:
-        # Tính toán thống kê điểm trung bình
-        stats = db.query(
-            func.avg(PeerReview.score).label("avg_score"),
-            func.count(PeerReview.id).label("count")
-        ).filter(PeerReview.team_id == team_id, PeerReview.reviewee_id == member.id).first()
+        # Lấy danh sách đánh giá MÀ thành viên này NHẬN ĐƯỢC
+        reviews_received = [r for r in all_reviews if r.reviewee_id == member.id]
         
+        # Lọc: Chỉ giữ lại đánh giá MỚI NHẤT từ mỗi người chấm (reviewer)
+        # Vì đã sort desc, nên đánh giá đầu tiên gặp từ mỗi reviewer chính là cái mới nhất
+        latest_reviews_map = {}
+        for r in reviews_received:
+            if r.reviewer_id not in latest_reviews_map:
+                latest_reviews_map[r.reviewer_id] = r
+        
+        final_reviews = list(latest_reviews_map.values())
+        
+        # Chỉ lấy danh sách điểm số thô
+        details_scores = [r.score for r in final_reviews]
+        
+        # KHÔNG TÍNH TRUNG BÌNH - Để giảng viên tự đánh giá
+        # average_score = 0.0 (removed)
+            
         summary.append({
             "user_id": member.id,
             "full_name": member.full_name,
-            "average_score": float(stats.avg_score) if stats.avg_score else 0.0,
-            "review_count": stats.count
+            "average_score": 0.0, # Frontend không dùng nữa
+            "scores": details_scores,
+            "review_count": len(final_reviews)
         })
     return summary
 

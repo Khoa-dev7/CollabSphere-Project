@@ -26,7 +26,7 @@ export default function KanbanBoard({ teamId }) {
               desc: t.description || ""
             });
           } else {
-            // Fallback for unknown status
+            // Dự phòng cho trạng thái không xác định
             newCols.todo.push({
               id: t.id,
               title: t.title,

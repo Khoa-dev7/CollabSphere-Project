@@ -149,7 +149,7 @@ class Team(Base):
     assessments = relationship("RubricAssessment", back_populates="team", cascade="all, delete-orphan")
     # Các mối quan hệ 1 chiều với tính năng xóa hàng loạt (cascade)
     messages = relationship("ChatMessage", primaryjoin="ChatMessage.team_id == Team.id", cascade="all, delete-orphan", viewonly=False)
-    activity_logs = relationship("ActivityLog", primaryjoin="ActivityLog.team_id == Team.id", cascade="all, delete-orphan", viewonly=False)
+    activity_logs = relationship("ActivityLog", back_populates="team", cascade="all, delete-orphan")
     resources = relationship("Resource", primaryjoin="Resource.team_id == Team.id", cascade="all, delete-orphan", viewonly=False)
     milestone_answers = relationship("MilestoneAnswer", back_populates="team", cascade="all, delete-orphan")
     milestone_statuses = relationship("TeamMilestone", primaryjoin="TeamMilestone.team_id == Team.id", cascade="all, delete-orphan", viewonly=False)

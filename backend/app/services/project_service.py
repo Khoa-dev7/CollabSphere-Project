@@ -45,8 +45,8 @@ def generate_milestones_ai(db: Session, subject_id: int, user_id: int):
     """
     Sử dụng Trí tuệ nhân tạo (AI) để gợi ý các mốc thời gian (milestones) phù hợp cho môn học.
     """
-    # Fetch subject/syllabus info for context
-    # This is a refinement of the previous mock logic
+    # Lấy thông tin môn học/đề cương để làm ngữ cảnh
+    # Đây là phiên bản cải tiến của logic giả lập trước đó
     prompt = f"Generate project milestones for a subject with ID {subject_id}."
     response = ai_service.get_project_guidance(db, prompt, user_id)
     
@@ -58,7 +58,7 @@ def generate_milestones_ai(db: Session, subject_id: int, user_id: int):
         target_id=subject_id
     )
     
-    # Parse the response into milestones (simplified for this task)
+    # Phân tích phản hồi thành các milestones (đơn giản hóa cho tác vụ này)
     return [
         {"title": "AI Generated Milestone", "description": response[:200], "order": 1}
     ]
@@ -82,7 +82,7 @@ async def approve_project(db: Session, project_id: int, status: str, user_id: in
         target_id=project.id
     )
 
-    # Trigger Notification for creator
+    # Kích hoạt thông báo cho người tạo
     from app.services.notification_service import create_notification
     msg = "duyệt" if status == "Approved" else ("từ chối" if status == "Rejected" else status)
     await create_notification(
@@ -100,22 +100,22 @@ def create_team(db: Session, team_in: TeamCreate):
     Tạo một nhóm làm việc mới.
     Nếu có 'project_title', hệ thống sẽ tự động tạo Project và bộ Rubric chấm điểm mẫu cho nhóm này.
     """
-    # Logic: If project_title is provided, create a new Project and Rubric automatically
+    # Logic: Nếu có tên dự án, tự động tạo Dự án mới và Rubric đi kèm
     created_project_id = team_in.project_id
     
     if team_in.project_title:
-        # Fetch Class to get the Lecturer (Creator)
+        # Lấy thông tin lớp học để tìm Giảng viên (Người tạo)
         from app.models.project_models import Class
         class_obj = db.query(Class).filter(Class.id == team_in.class_id).first()
         creator_id = class_obj.lecturer_id if class_obj else None
 
-        # 1. Create Project
+        # 1. Tạo Dự án
         new_project = Project(
             title=team_in.project_title,
             description=f"Dự án được giao cho nhóm {team_in.name}",
             creator_id=creator_id,
             lecturer_id=creator_id,
-            status="Approved", # Auto-approve
+            status="Approved", # Tự động duyệt
             syllabus_id=None 
         )
         db.add(new_project)
@@ -123,7 +123,7 @@ def create_team(db: Session, team_in: TeamCreate):
         db.refresh(new_project)
         created_project_id = new_project.id
         
-        # 2. Create Default Rubric for this Project
+        # 2. Tạo Rubric mặc định cho Dự án này
         from app.models.eval_models import Rubric, RubricCriteria
         new_rubric = Rubric(
             title=f"Rubric: {team_in.project_title}",
@@ -134,7 +134,7 @@ def create_team(db: Session, team_in: TeamCreate):
         db.commit()
         db.refresh(new_rubric)
         
-        # 3. Add default criteria
+        # 3. Thêm các tiêu chí mặc định
         default_criteria = [
             {"title": "Tính năng", "weight": 40, "max_score": 10},
             {"title": "Giao diện (UI/UX)", "weight": 30, "max_score": 10},
@@ -163,7 +163,7 @@ def create_team(db: Session, team_in: TeamCreate):
     db.refresh(db_team)
     
     
-    # Ensure leader is added as a member
+    # Đảm bảo nhóm trưởng được thêm vào danh sách thành viên
     members_to_add = set(team_in.member_ids)
     if team_in.leader_id:
         members_to_add.add(team_in.leader_id)
@@ -174,7 +174,7 @@ def create_team(db: Session, team_in: TeamCreate):
     db.commit()
     db.refresh(db_team)
     
-    # Log team creation
+    # Ghi nhật ký tạo nhóm
     if team_in.leader_id:
         log_activity(
             db=db,
@@ -191,18 +191,18 @@ async def add_team_member(db: Session, team_id: int, user_id: int, actor_id: int
     Thêm một thành viên mới vào nhóm.
     Kiểm tra giới hạn số lượng thành viên tối đa của dự án (nếu có định nghĩa).
     """
-    # Check if team exists
+    # Kiểm tra xem nhóm có tồn tại không
     team = db.query(Team).filter(Team.id == team_id).first()
     if not team:
         raise HTTPException(status_code=404, detail="Không tìm thấy nhóm")
         
-    # Check project max_members limit
+    # Kiểm tra giới hạn thành viên tối đa của dự án
     if team.project and team.project.max_members:
         current_count = db.query(TeamMember).filter(TeamMember.team_id == team_id).count()
         if current_count >= team.project.max_members:
             raise HTTPException(status_code=400, detail=f"Nhóm đã đạt số lượng thành viên tối đa là {team.project.max_members} người")
     
-    # Check if user already in team
+    # Kiểm tra xem người dùng đã có trong nhóm chưa
     existing = db.query(TeamMember).filter(TeamMember.team_id == team_id, TeamMember.user_id == user_id).first()
     if existing:
         return existing
@@ -300,9 +300,9 @@ def update_project(db: Session, project_id: int, project_in: ProjectUpdate, acto
     db_project = get_project_by_id(db, project_id)
     update_data = project_in.dict(exclude_unset=True)
     
-    # Handle milestones if provided
+    # Xử lý milestones nếu được cung cấp
     if "milestones" in update_data:
-        # Simple implementation: delete old, add new
+        # Cài đặt đơn giản: xóa cũ, thêm mới
         db.query(ProjectMilestone).filter(ProjectMilestone.project_id == project_id).delete()
         for ms in update_data["milestones"]:
             db_ms = ProjectMilestone(project_id=project_id, **ms)
@@ -335,7 +335,7 @@ def create_milestone_question(db: Session, milestone_id: int, question_in: Miles
 from app.models.project_models import ClassProject
 
 def assign_project_to_class(db: Session, class_id: int, project_id: int):
-    # Check if already assigned
+    # Kiểm tra xem đã được giao chưa
     existing = db.query(ClassProject).filter(
         ClassProject.class_id == class_id,
         ClassProject.project_id == project_id
@@ -350,7 +350,7 @@ def assign_project_to_class(db: Session, class_id: int, project_id: int):
     return db_cp
 
 def delete_team(db: Session, team_id: int):
-    """Deletes a team and all its associated data via cascade"""
+    """Xóa một nhóm và tất cả dữ liệu liên quan qua cascade"""
     team = db.query(Team).filter(Team.id == team_id).first()
     if not team:
         return None

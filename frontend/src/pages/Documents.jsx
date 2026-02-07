@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import Layout from "../components/Layout";
 import api from "../api";
 import EmptyState from "../components/EmptyState";
 
 export default function Documents() {
+    const [searchParams] = useSearchParams();
     const [resources, setResources] = useState([]);
     const [loading, setLoading] = useState(true);
     const [teamId, setTeamId] = useState(null);
@@ -13,12 +15,19 @@ export default function Documents() {
     useEffect(() => {
         const init = async () => {
             try {
-                const statsRes = await api.get("/dashboard/me/stats");
-                if (statsRes.data.team_id) {
-                    setTeamId(statsRes.data.team_id);
-                    fetchResources(statsRes.data.team_id);
+                const teamIdFromUrl = searchParams.get("teamId");
+                if (teamIdFromUrl) {
+                    setTeamId(teamIdFromUrl);
+                    fetchResources(teamIdFromUrl);
                 } else {
-                    setLoading(false);
+                    // Fallback: Lấy team_id từ stats của user hiện tại
+                    const statsRes = await api.get("/dashboard/me/stats");
+                    if (statsRes.data.team_id) {
+                        setTeamId(statsRes.data.team_id);
+                        fetchResources(statsRes.data.team_id);
+                    } else {
+                        setLoading(false);
+                    }
                 }
             } catch (err) {
                 console.error("Failed to init documents", err);
@@ -26,7 +35,7 @@ export default function Documents() {
             }
         };
         init();
-    }, []);
+    }, [searchParams]);
 
     const fetchResources = async (tid) => {
         try {

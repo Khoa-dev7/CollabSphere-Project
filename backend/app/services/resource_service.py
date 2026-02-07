@@ -55,7 +55,7 @@ def create_resource(db: Session, resource_in: ResourceCreate):
     db.commit()
     db.refresh(db_resource)
     
-    # Log resource creation
+    # Ghi nhật ký tạo tài nguyên
     log_activity(
         db=db,
         user_id=db_resource.owner_id,

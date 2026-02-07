@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
+from app.schemas.user_schemas import UserOut
 
 class MilestoneBase(BaseModel):
     title: str
@@ -68,6 +69,7 @@ class TeamCreate(TeamBase):
 class TeamOut(TeamBase):
     id: int
     created_at: datetime
+    members: List[UserOut] = []
     class Config:
         from_attributes = True
 

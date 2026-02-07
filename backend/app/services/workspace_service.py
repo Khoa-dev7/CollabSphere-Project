@@ -3,6 +3,7 @@ from fastapi import HTTPException
 from app.models.project_models import Task, Team
 from app.schemas.task_schemas import TaskCreate, TaskUpdate, TaskBulkUpdate
 from typing import List
+from app.services.activity_log_service import log_activity
 
 def create_task(db: Session, task_in: TaskCreate, user_id: int):
     db_task = Task(**task_in.dict())
@@ -20,8 +21,6 @@ def create_task(db: Session, task_in: TaskCreate, user_id: int):
     )
     
     return db_task
-
-from app.services.activity_log_service import log_activity
 
 def update_task(db: Session, task_id: int, task_in: TaskUpdate, user_id: int):
     db_task = db.query(Task).filter(Task.id == task_id).first()
@@ -84,11 +83,16 @@ def bulk_update_tasks(db: Session, task_data: TaskBulkUpdate, user_id: int):
         results.append(db_task)
     return results
 
+from app.schemas.project_schemas import MilestoneAnswerCreate, MilestoneQuestionOut, MilestoneAnswerOut, TeamMilestoneUpdate
+from app.routes.security_deps import verify_team_leader
+from app.schemas.task_schemas import TaskMove
+
 def get_task_by_id(db: Session, task_id: int):
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Không tìm thấy nhiệm vụ")
     return task
+
 def delete_task(db: Session, task_id: int, user_id: int):
     task = get_task_by_id(db, task_id)
     team_id = task.team_id
@@ -108,8 +112,6 @@ def delete_task(db: Session, task_id: int, user_id: int):
     
     return True
 
-from app.schemas.task_schemas import TaskMove
-
 def move_task(db: Session, task_id: int, move_data: TaskMove, user_id: int):
     task = get_task_by_id(db, task_id)
     old_status = task.status
@@ -118,33 +120,33 @@ def move_task(db: Session, task_id: int, move_data: TaskMove, user_id: int):
     new_order = move_data.new_order
     
     if old_status == new_status:
-        # Same Column Reorder
+        # Sắp xếp lại trong cùng một cột
         if old_order == new_order:
             return task
         
-        # Get tasks in this column
+        # Lấy danh sách các công việc trong cột này
         tasks = db.query(Task).filter(
             Task.team_id == task.team_id, 
             Task.status == old_status
         ).order_by(Task.order.asc()).all()
         
-        # Remove task from list
+        # Xóa công việc khỏi danh sách tạm thời
         tasks = [t for t in tasks if t.id != task_id]
         
-        # Insert at new position
+        # Chèn vào vị trí mới
         if new_order < 0: new_order = 0
         if new_order > len(tasks): new_order = len(tasks)
         
         tasks.insert(new_order, task)
         
-        # Re-index
+        # Đánh lại chỉ số thứ tự (index)
         for index, t in enumerate(tasks):
             t.order = index
             t.status = new_status # Should be same
             
     else:
-        # Move to different column
-        # 1. Update old column: Remove and re-index
+        # Di chuyển sang cột khác
+        # 1. Cập nhật cột cũ: Xóa và đánh lại chỉ số
         source_tasks = db.query(Task).filter(
             Task.team_id == task.team_id, 
             Task.status == old_status
@@ -154,7 +156,7 @@ def move_task(db: Session, task_id: int, move_data: TaskMove, user_id: int):
         for index, t in enumerate(source_tasks):
             t.order = index
             
-        # 2. Update new column: Insert and re-index
+        # 2. Cập nhật cột mới: Chèn và đánh lại chỉ số
         dest_tasks = db.query(Task).filter(
             Task.team_id == task.team_id, 
             Task.status == new_status
@@ -169,24 +171,33 @@ def move_task(db: Session, task_id: int, move_data: TaskMove, user_id: int):
             t.order = index
             t.status = new_status
 
+    db.flush()
     db.commit()
     db.refresh(task)
     
-    log_activity(
-        db=db,
-        user_id=user_id,
-        team_id=task.team_id,
-        action=f"đã chuyển nhiệm vụ '{task.title}' từ {old_status} sang {new_status}",
-        target_type="task",
-        target_id=task.id
-    )
+    try:
+        log_activity(
+            db=db,
+            user_id=user_id,
+            team_id=task.team_id,
+            action=f"đã chuyển nhiệm vụ '{task.title}' từ {old_status} sang {new_status}",
+            target_type="task",
+            target_id=task.id
+        )
+    except Exception as e:
+        # Ghi nhật ký là tác vụ không quan trọng, không làm lỗi hành động di chuyển
+        pass
+    
     return task
 
-from app.models.project_models import TaskComment
+from app.models.project_models import TaskComment, MilestoneAnswer, TeamMilestone, MilestoneQuestion, TeamMember, ProjectMilestone, Project, Class
 from app.schemas.task_schemas import TaskCommentCreate
+from app.models.comm_models import Checkpoint, CheckpointAssignee, CheckpointSubmission
+from app.schemas.checkpoint_schemas import CheckpointCreate, CheckpointUpdate, CheckpointSubmissionCreate
+from app.models.base_models import User
 
 def create_task_comment(db: Session, task_id: int, user_id: int, comment_in: TaskCommentCreate):
-    task = get_task_by_id(db, task_id) # Verify task exists
+    task = get_task_by_id(db, task_id) # Xác minh công việc tồn tại
     db_comment = TaskComment(
         task_id=task_id,
         user_id=user_id,
@@ -196,7 +207,7 @@ def create_task_comment(db: Session, task_id: int, user_id: int, comment_in: Tas
     db.commit()
     db.refresh(db_comment)
     
-    # Optional: Log activity or notify
+    # Tùy chọn: Ghi nhật ký hoặc thông báo
     log_activity(
         db=db,
         user_id=user_id,
@@ -208,12 +219,9 @@ def create_task_comment(db: Session, task_id: int, user_id: int, comment_in: Tas
     return db_comment
 
 def get_task_comments(db: Session, task_id: int):
-    # Verify task exists
+    # Xác minh công việc tồn tại
     get_task_by_id(db, task_id)
     return db.query(TaskComment).filter(TaskComment.task_id == task_id).order_by(TaskComment.created_at.asc()).all()
-
-from app.models.project_models import MilestoneAnswer, TeamMilestone, MilestoneQuestion
-from app.schemas.project_schemas import MilestoneAnswerCreate
 
 def answer_milestone_question(db: Session, question_id: int, user_id: int, team_id: int, answer_in: MilestoneAnswerCreate):
     db_answer = MilestoneAnswer(
@@ -252,9 +260,6 @@ def mark_milestone_done(db: Session, milestone_id: int, team_id: int, is_done: b
     db.refresh(team_ms)
     return team_ms
 
-from app.models.comm_models import Checkpoint, CheckpointAssignee, CheckpointSubmission
-from app.schemas.checkpoint_schemas import CheckpointCreate, CheckpointUpdate, CheckpointSubmissionCreate
-
 def create_checkpoint(db: Session, team_id: int, checkpoint_in: CheckpointCreate):
     db_checkpoint = Checkpoint(
         team_id=team_id,
@@ -280,7 +285,7 @@ def update_checkpoint(db: Session, checkpoint_id: int, update_in: CheckpointUpda
     return checkpoint
 
 def assign_checkpoint_members(db: Session, checkpoint_id: int, user_ids: List[int]):
-    # Clear existing? Or append? usually overwrite for simplicty in PUT
+    # Xóa cái cũ? Hay thêm vào? Thường là ghi đè để đơn giản hóa trong PUT
     db.query(CheckpointAssignee).filter(CheckpointAssignee.checkpoint_id == checkpoint_id).delete()
     
     for uid in user_ids:
@@ -291,7 +296,7 @@ def assign_checkpoint_members(db: Session, checkpoint_id: int, user_ids: List[in
     return True
 
 def submit_checkpoint(db: Session, checkpoint_id: int, student_id: int, submission_in: CheckpointSubmissionCreate):
-    # Check if exists
+    # Kiểm tra nếu đã tồn tại
     submission = db.query(CheckpointSubmission).filter(
         CheckpointSubmission.checkpoint_id == checkpoint_id,
         CheckpointSubmission.student_id == student_id
@@ -322,70 +327,80 @@ def get_checkpoint_by_id(db: Session, checkpoint_id: int):
         raise HTTPException(status_code=404, detail="Không tìm thấy Checkpoint")
     return cp
 
-from app.models.project_models import TeamMember
-from app.models.base_models import User
-
 def get_user_team_members(db: Session, user_id: int):
-    # Find the team(s) this user is in
+    # Tìm các nhóm mà người dùng này tham gia
     member_record = db.query(TeamMember).filter(TeamMember.user_id == user_id).first()
     if not member_record:
         return []
     
     team_id = member_record.team_id
-    # Get all members of that team
+    # Lấy tất cả thành viên của nhóm đó
     members = db.query(User).join(TeamMember).filter(TeamMember.team_id == team_id).all()
     
     return members
 
 def get_team_members(db: Session, team_id: int):
-    # Get all members of specific team
+    # Lấy tất cả thành viên của nhóm cụ thể
     members = db.query(User).join(TeamMember).filter(TeamMember.team_id == team_id).all()
     return members
 
-def get_user_team_info(db: Session, user_id: int):
-    """Get user's team information with milestones and member count"""
-    from app.models.project_models import ProjectMilestone, Project, Team, Class
-    from app.models.base_models import User
+def get_user_team_info(db: Session, user_id: int, team_id: int = None):
+    """
+    Lấy thông tin nhóm của người dùng.
+    - Nếu có team_id: Kiểm tra quyền truy cập và trả về nhóm đó.
+    - Nếu không có team_id: Trả về nhóm gần nhất (hoặc đầu tiên) mà người dùng tham gia.
+    """
     
-    # Check user role
     user = db.query(User).filter(User.id == user_id).first()
-    team = None
-    
-    if user.role in ["Lecturer", "Head", "Admin", "lecturer", "head", "admin"]:
-        # For staff, find the first team in their classes context
-        if user.role == "Admin":
-            team = db.query(Team).first()
-        else:
-            # Find classes taught by this user
-            # Then find teams in those classes
-            first_class = db.query(Class).filter(Class.lecturer_id == user_id).first()
-            if first_class:
-                team = db.query(Team).filter(Team.class_id == first_class.id).first()
-            
-            # If still handled as nothing, try finding any team (fallback)
-            if not team:
-                 team = db.query(Team).first()
-                 
-        if not team:
-             raise HTTPException(status_code=404, detail="Không tìm thấy nhóm nào trong hệ thống")
-             
-    else:
-        # Standard Student Logic
-        member_record = db.query(TeamMember).filter(TeamMember.user_id == user_id).first()
-        if not member_record:
-            return None # Return None instead of 404 for students
+    if not user:
+        raise HTTPException(status_code=404, detail="Người dùng không tồn tại")
         
-        team = db.query(Team).filter(Team.id == member_record.team_id).first()
-        if not team:
-            return None # Return None instead of 404
+    team = None
+    role_lower = user.role.lower()
     
-    # Get project milestones
+    if role_lower in ["lecturer", "head", "admin", "staff"]:
+        if team_id:
+            team = db.query(Team).filter(Team.id == team_id).first()
+        else:
+            if role_lower == "admin":
+                team = db.query(Team).first()
+            else:
+                # Tìm lớp mà giảng viên dạy
+                first_class = db.query(Class).filter(Class.lecturer_id == user_id).first()
+                if first_class:
+                    team = db.query(Team).filter(Team.class_id == first_class.id).first()
+                if not team:
+                    team = db.query(Team).first()
+                    
+        if not team:
+            raise HTTPException(status_code=404, detail="Không tìm thấy nhóm nào")
+            
+    else:
+        # Logistic dành cho Sinh viên
+        if team_id:
+            # Kiểm tra xem sinh viên có thực sự nằm trong nhóm này không
+            member_record = db.query(TeamMember).filter(
+                TeamMember.user_id == user_id, 
+                TeamMember.team_id == team_id
+            ).first()
+            if member_record:
+                team = db.query(Team).filter(Team.id == team_id).first()
+        else:
+            # Lấy nhóm mới nhất mà sinh viên tham gia
+            member_record = db.query(TeamMember).filter(TeamMember.user_id == user_id).order_by(TeamMember.id.desc()).first()
+            if member_record:
+                team = db.query(Team).filter(Team.id == member_record.team_id).first()
+        
+        if not team:
+            return None # Trả về None để Frontend xử lý trạng thái Empty
+    
+    # Lấy các mốc thời gian (milestones) của dự án
     milestones = []
     if team.project_id:
         project_milestones = db.query(ProjectMilestone).filter(ProjectMilestone.project_id == team.project_id).order_by(ProjectMilestone.order.asc()).all()
         
         for ms in project_milestones:
-            # Check if team has completed this milestone
+            # Kiểm tra xem nhóm đã hoàn thành milestone này chưa
             team_ms = db.query(TeamMilestone).filter(
                 TeamMilestone.team_id == team.id,
                 TeamMilestone.milestone_id == ms.id
@@ -399,10 +414,10 @@ def get_user_team_info(db: Session, user_id: int):
                 "completed_at": team_ms.completed_at if team_ms else None
             })
     
-    # Get member count
+    # Lấy số lượng thành viên
     member_count = db.query(TeamMember).filter(TeamMember.team_id == team.id).count()
     
-    # Get Project Details
+    # Lấy chi tiết dự án
     project_title = None
     project_desc = None
     if team.project_id:
@@ -411,7 +426,7 @@ def get_user_team_info(db: Session, user_id: int):
             project_title = project.title
             project_desc = project.description
 
-    # Get Leader Details
+    # Lấy chi tiết nhóm trưởng
     leader_name = None
     leader_email = None
     if team.leader_id:

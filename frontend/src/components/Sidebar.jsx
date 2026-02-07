@@ -109,11 +109,8 @@ export default function Sidebar() {
             <NavLink to="/courses" className={linkClass}>
               📚 Môn học
             </NavLink>
-            <NavLink to="/workspace" className={linkClass}>
-              🛠️ Team Workspace
-            </NavLink>
-            <NavLink to="/team" className={linkClass}>
-              👥 Thành viên nhóm
+            <NavLink to="/teams" className={linkClass}>
+              👥 Danh sách nhóm
             </NavLink>
             <NavLink to="/chat" className={linkClass}>
               💬 Chat nhóm
@@ -124,12 +121,9 @@ export default function Sidebar() {
             <NavLink to="/meeting" className={linkClass}>
               🎥 Họp trực tuyến
             </NavLink>
-            <NavLink to="/documents" className={linkClass}>
+            {/* <NavLink to="/documents" className={linkClass}>
               📂 Tài liệu nhóm
-            </NavLink>
-            <NavLink to="/peer-review" className={linkClass}>
-              ⭐ Đánh giá đồng đẳng
-            </NavLink>
+            </NavLink> */}
             <NavLink to="/my-grades" className={linkClass}>
               🎓 Kết quả học tập
             </NavLink>

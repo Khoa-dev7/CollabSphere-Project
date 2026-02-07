@@ -19,6 +19,7 @@ def log_activity(db: Session, user_id: int, action: str, target_type: str = None
     return db_log
 
 from app.models.base_models import User
+from app.models.project_models import Team
 
 def get_team_activities(db: Session, team_id: int, limit: int = 20):
     return db.query(ActivityLog).join(User).filter(ActivityLog.team_id == team_id).order_by(ActivityLog.created_at.desc()).limit(limit).all()
@@ -27,4 +28,4 @@ def get_system_activities(db: Session, limit: int = 50, skip: int = 0):
     """
     Lấy tất cả các hoạt động cho chế độ xem quản trị.
     """
-    return db.query(ActivityLog).join(User).order_by(ActivityLog.created_at.desc()).offset(skip).limit(limit).all()
+    return db.query(ActivityLog).join(User).outerjoin(Team).order_by(ActivityLog.created_at.desc()).offset(skip).limit(limit).all()

@@ -11,6 +11,8 @@ router = APIRouter()
 
 @router.get("/teams/{team_id}", response_model=List[ActivityLogOut])
 def get_team_activity_logs(team_id: int, limit: int = 20, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from app.routes.security_deps import verify_team_access
+    verify_team_access(team_id, current_user, db)
     # Lấy nhật ký hoạt động của nhóm
     return activity_log_service.get_team_activities(db, team_id, limit)
 

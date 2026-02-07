@@ -25,7 +25,7 @@ def create_task(task_in: TaskCreate, db: Session = Depends(get_db), current_user
 
 @router.put("/tasks/{task_id}", response_model=TaskOut)
 def update_task(task_id: int, task_in: TaskUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    # Verify access to task's team
+    # Xác minh quyền truy cập vào nhóm của công việc
     from app.models.project_models import Task
     from app.routes.security_deps import verify_team_access_manual
     db_task = db.query(Task).filter(Task.id == task_id).first()
@@ -58,7 +58,7 @@ def get_team_tasks(team_id: int, db: Session = Depends(get_db), current_user: Us
 
 @router.put("/tasks/bulk-update", response_model=List[TaskOut])
 def bulk_update_tasks(task_data: TaskBulkUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    # Verify access for at least one task or all (simplifying: check first task)
+    # Xác minh quyền truy cập cho ít nhất một công việc (đơn giản hóa: kiểm tra công việc đầu tiên)
     if not task_data.tasks:
         return []
     
@@ -110,7 +110,7 @@ def upload_task_attachment(
         file_url=file_url,
         owner_id=current_user.id,
         task_id=task_id,
-        team_id=task.team_id # Also link to team for easier cleanup/listing
+        team_id=task.team_id # Liên kết với nhóm để dễ dàng dọn dẹp/liệt kê
     )
     return resource_service.create_resource(db, resource_in)
 
@@ -137,7 +137,7 @@ from app.routes.security_deps import verify_team_leader
 
 @router.get("/teams/{team_id}/milestones/{milestone_id}/questions", response_model=List[MilestoneQuestionOut])
 def get_milestone_questions(team_id: int, milestone_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    # Verify access to team
+    # Xác minh quyền truy cập vào nhóm
     from app.routes.security_deps import verify_team_access_manual
     verify_team_access_manual(db, current_user.id, team_id, current_user.role)
     return workspace_service.get_milestone_questions(db, milestone_id)
@@ -150,7 +150,7 @@ def answer_milestone_question(team_id: int, question_id: int, answer_in: Milesto
 
 @router.put("/teams/{team_id}/milestones/{milestone_id}/status", dependencies=[Depends(verify_team_leader)])
 def update_milestone_status(team_id: int, milestone_id: int, status_in: TeamMilestoneUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    # verify_team_leader dependency handles the check
+    # Dependency verify_team_leader đã xử lý việc kiểm tra quyền
     return workspace_service.mark_milestone_done(db, milestone_id, team_id, status_in.is_done)
 
 from app.schemas.checkpoint_schemas import CheckpointCreate, CheckpointOut, CheckpointUpdate, CheckpointAssign, CheckpointSubmissionCreate, CheckpointSubmissionOut
@@ -190,6 +190,6 @@ def get_team_members_by_id(team_id: int, db: Session = Depends(get_db), current_
     return workspace_service.get_team_members(db, team_id)
 
 @router.get("/teams/me")
-def get_my_team(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Get current user's team information with milestones"""
-    return workspace_service.get_user_team_info(db, current_user.id)
+def get_my_team(team_id: int = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Lấy thông tin nhóm của người dùng hiện tại bao gồm các mốc thời gian (milestones)"""
+    return workspace_service.get_user_team_info(db, current_user.id, team_id)

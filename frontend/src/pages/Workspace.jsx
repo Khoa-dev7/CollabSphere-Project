@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import Layout from "../components/Layout";
 import TaskModal from "../components/TaskModal";
 import api from "../api";
@@ -129,6 +130,9 @@ function DroppableColumn({ id, title, children, count }) {
  */
 export default function Workspace() {
     // 1. State quản lý dữ liệu chính
+    const [searchParams] = useSearchParams();
+    const urlTeamId = searchParams.get("teamId");
+
     const [team, setTeam] = useState(null); // Thông tin nhóm hiện tại
     const [tasks, setTasks] = useState([]); // Toàn bộ nhiệm vụ của nhóm
     const [columns, setColumns] = useState({ // Cấu trúc cột Kanban và các nhiệm vụ trong mỗi cột
@@ -186,7 +190,7 @@ export default function Workspace() {
         setError("");
         try {
             // 1. Lấy thông tin nhóm và lộ trình (milestones)
-            const teamResponse = await api.get("/workspace/teams/me");
+            const teamResponse = await api.get(`/workspace/teams/me${urlTeamId ? `?team_id=${urlTeamId}` : ""}`);
             setTeam(teamResponse.data);
             setMilestones(teamResponse.data.milestones || []);
             const tId = teamResponse.data.id;
@@ -284,12 +288,16 @@ export default function Workspace() {
         return Object.keys(columns).find((key) => columns[key].taskIds.includes(id));
     };
 
+    const [startContainer, setStartContainer] = useState(null); // Container ban đầu khi bắt đầu kéo
+
     const handleDragStart = (event) => {
-        setActiveId(event.active.id);
+        const id = event.active.id;
+        setActiveId(id);
+        setStartContainer(findContainer(id));
     };
 
     function handleDragOver(event) {
-        // Xử lý khi một thẻ nhiệm vụ được kéo lướt qua ranh giới giữa các cột
+        // ... (giữ nguyên logic chuyển cột tức thời trên UI)
         const { active, over } = event;
         if (!over) return;
 
@@ -303,7 +311,6 @@ export default function Workspace() {
             return;
         }
 
-        // Di chuyển thẻ nhiệm vụ sang cột mới trong State (UI cập nhật tức thì)
         setColumns((prev) => {
             const activeItems = prev[activeContainer].taskIds;
             const overItems = prev[overContainer].taskIds;
@@ -311,26 +318,27 @@ export default function Workspace() {
             const overIndex = overItems.indexOf(overId);
 
             let newIndex;
-            if (overId in prev) { // Nếu thả vào một cột trống
-                newIndex = overItems.length + 1;
-            } else { // Nếu thả vào giữa các task trong một cột
-                const isBelowLastItem = over && overIndex === overItems.length - 1;
+            if (overId in prev) {
+                newIndex = overItems.length;
+            } else {
+                const isBelowLastItem = over && over.rect && event.active.rect.current.translated &&
+                    event.active.rect.current.translated.top > over.rect.top + over.rect.height;
                 const modifier = isBelowLastItem ? 1 : 0;
-                newIndex = overIndex >= 0 ? overIndex + modifier : overItems.length + 1;
+                newIndex = overIndex >= 0 ? overIndex + modifier : overItems.length;
             }
 
             return {
                 ...prev,
                 [activeContainer]: {
                     ...prev[activeContainer],
-                    taskIds: activeItems.filter((item) => item !== activeId), // Xóa task khỏi cột cũ
+                    taskIds: activeItems.filter((item) => item !== activeId),
                 },
                 [overContainer]: {
                     ...prev[overContainer],
                     taskIds: [
                         ...overItems.slice(0, newIndex),
-                        activeItems[activeIndex], // Thêm task vào vị trí mới trong cột mới
-                        ...overItems.slice(newIndex, overItems.length),
+                        activeId,
+                        ...overItems.slice(newIndex),
                     ],
                 },
             };
@@ -338,66 +346,42 @@ export default function Workspace() {
     }
 
     async function handleDragEnd(event) {
-        // Xử lý khi người dùng thả thẻ nhiệm vụ vào vị trí mới
         const { active, over } = event;
         const id = active.id;
         const overId = over?.id;
 
-        const activeContainer = findContainer(id);
-        const overContainer = findContainer(overId);
-
-        if (!activeContainer || !overContainer || activeContainer !== overContainer) {
-            // Nếu cột thay đổi, cập nhật trạng thái nhiệm vụ lên Server
-            if (overContainer) {
-                try {
-                    // Cập nhật vị trí mới trong cột (mặc định cho vào cuối nếu chưa có logic sắp xếp chi tiết)
-                    const newOrder = columns[overContainer].taskIds.length;
-
-                    await api.put(`/workspace/tasks/${id}/move`, {
-                        new_status: overContainer,
-                        new_order: newOrder
-                    });
-
-                    // Cập nhật lại danh sách nhiệm vụ cục bộ
-                    setTasks(prev => prev.map(t => t.id === id ? { ...t, status: overContainer, order: newOrder } : t));
-                    fetchWorkspaceData(); // Tải lại dữ liệu để đảm bảo đồng bộ
-                } catch (err) {
-                    console.error("Failed to update task status", err);
-                    fetchWorkspaceData(); // Tải lại dữ liệu nếu có lỗi để đồng bộ
-                }
-            }
+        if (!overId) {
             setActiveId(null);
+            setStartContainer(null);
             return;
         }
 
-        // Nếu chỉ thay đổi thứ tự trong cùng một cột
-        const activeIndex = columns[activeContainer].taskIds.indexOf(active.id);
-        const overIndex = columns[overContainer].taskIds.indexOf(overId);
+        const currentContainer = findContainer(id);
+        const overIndex = columns[currentContainer].taskIds.indexOf(id);
 
-        if (activeIndex !== overIndex) {
-            // Cập nhật thứ tự trong state cục bộ
-            setColumns((items) => ({
-                ...items,
-                [overContainer]: {
-                    ...items[overContainer],
-                    taskIds: arrayMove(items[overContainer].taskIds, activeIndex, overIndex),
-                },
-            }));
-
-            // Gửi yêu cầu cập nhật thứ tự lên Backend (sử dụng cùng endpoint /move)
+        // Kiểm tra xem container đã thay đổi hay vị trí trong cùng container đã thay đổi
+        if (currentContainer !== startContainer || columns[currentContainer].taskIds.indexOf(id) !== -1) {
             try {
+                // Chúng ta lấy vị trí hiện tại của task trong state columns đã được update bởi handleDragOver
                 await api.put(`/workspace/tasks/${id}/move`, {
-                    new_status: overContainer,
+                    new_status: currentContainer,
                     new_order: overIndex
                 });
+
+                // Cập nhật lại danh sách nhiệm vụ cục bộ (để đồng bộ status string trong task object)
+                setTasks(prev => prev.map(t => t.id === id ? { ...t, status: currentContainer, order: overIndex } : t));
+
+                // Fetch lại để chắc chắn backend và frontend khớp nhau hoàn toàn
                 fetchWorkspaceData();
             } catch (err) {
-                console.error("Failed to reorder tasks", err);
-                fetchWorkspaceData(); // Tải lại dữ liệu nếu có lỗi
+                console.error("Failed to update task position", err);
+                alert("Lỗi: Không thể lưu vị trí nhiệm vụ mới. Vui lòng thử lại.");
+                fetchWorkspaceData();
             }
         }
 
         setActiveId(null);
+        setStartContainer(null);
     }
 
     if (loading) {
@@ -415,7 +399,7 @@ export default function Workspace() {
             <Layout title="Workspace">
                 <div style={{ textAlign: 'center', padding: 40 }}>
                     <p style={{ color: '#ef4444' }}>{error}</p>
-                    <button className="btn primary" onClick={fetchData} style={{ marginTop: 16 }}>
+                    <button className="btn primary" onClick={fetchWorkspaceData} style={{ marginTop: 16 }}>
                         Thử lại
                     </button>
                 </div>

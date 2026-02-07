@@ -65,6 +65,7 @@ export default function GradingPage() {
             peerRes.data.forEach(item => {
               peerMap[item.user_id] = {
                 average_score: item.average_score,
+                scores: item.scores || [], // Thêm mảng điểm chi tiết
                 review_count: item.review_count
               };
             });
@@ -250,16 +251,12 @@ export default function GradingPage() {
                   {/* Cột hiển thị kết quả Đánh giá đồng đẳng do sinh viên thực hiện */}
                   <td>
                     {peerScores[s.id] ? (
-                      <div title={`${peerScores[s.id].review_count} lượt đánh giá`}>
+                      <div title={`${peerScores[s.id].review_count} lượt đánh giá: ${peerScores[s.id].scores.join(", ")}`}>
                         <span style={{
                           fontWeight: 'bold',
-                          color: peerScores[s.id].average_score >= 8 ? '#059669' :
-                            peerScores[s.id].average_score >= 5 ? '#d97706' : '#dc2626'
+                          color: '#059669'
                         }}>
-                          {peerScores[s.id].average_score.toFixed(1)}
-                        </span>
-                        <span style={{ fontSize: '0.8rem', color: '#666', marginLeft: '4px' }}>
-                          ({peerScores[s.id].review_count})
+                          {peerScores[s.id].scores.length > 0 ? peerScores[s.id].scores.join(", ") : "N/A"}
                         </span>
                       </div>
                     ) : (

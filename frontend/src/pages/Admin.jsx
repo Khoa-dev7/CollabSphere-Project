@@ -197,7 +197,7 @@ function ClassRow({ classData, onRefresh }) {
                             <table className="table" style={{ background: '#fff', marginTop: 12 }}>
                                 <thead>
                                     <tr>
-                                        <th>STT</th>
+                                        <th>ID</th>
                                         <th>Họ tên</th>
                                         <th>Username</th>
                                         <th>Email</th>
@@ -208,7 +208,7 @@ function ClassRow({ classData, onRefresh }) {
                                 <tbody>
                                     {students.map((student, idx) => (
                                         <tr key={student.id}>
-                                            <td>{idx + 1}</td>
+                                            <td><code style={{ fontSize: 12 }}>{student.id}</code></td>
                                             <td><strong>{student.full_name}</strong></td>
                                             <td><code>@{student.username}</code></td>
                                             <td>{student.email}</td>
@@ -247,7 +247,7 @@ function ClassRow({ classData, onRefresh }) {
                                             <option value="">-- Chọn sinh viên --</option>
                                             {availableStudents.map(s => (
                                                 <option key={s.id} value={s.id}>
-                                                    {s.full_name} (@{s.username})
+                                                    [{s.id}] {s.full_name} (@{s.username})
                                                 </option>
                                             ))}
                                         </select>
@@ -339,6 +339,10 @@ export default function Admin() {
     const [uploading, setUploading] = useState(false); // Trạng thái tải lên file Excel
     const fileInputRef = useRef(null); // Ref để trigger chọn file
     const [importRole, setImportRole] = useState("Student"); // Vai trò khi nhập user hàng loạt
+    const [showCreateClassModal, setShowCreateClassModal] = useState(false); // Trạng thái hiển thị modal tạo lớp
+    const [lecturers, setLecturers] = useState([]); // Danh sách giảng viên để chọn khi tạo lớp
+    const [newClassData, setNewClassData] = useState({ name: "", lecturer_id: "" }); // Dữ liệu lớp mới
+    const [creatingClass, setCreatingClass] = useState(false); // Trạng thái đang gửi yêu cầu tạo lớp
 
     // Hàm lấy dữ liệu tương ứng với Tab được chọn từ API
     const fetchEntities = async () => {
@@ -432,6 +436,42 @@ export default function Admin() {
         }
     };
 
+    // Lấy danh sách giảng viên khi cần tạo lớp mới
+    const fetchLecturers = async () => {
+        try {
+            const res = await api.get("/staff/users?role=Lecturer");
+            setLecturers(res.data || []);
+        } catch (err) {
+            console.error("Failed to fetch lecturers", err);
+        }
+    };
+
+    // Xử lý tạo lớp học mới
+    const handleCreateClass = async (e) => {
+        e.preventDefault();
+        if (!newClassData.name || !newClassData.lecturer_id) {
+            alert("Vui lòng nhập đầy đủ tên lớp và chọn giảng viên.");
+            return;
+        }
+
+        setCreatingClass(true);
+        try {
+            await api.post("/staff/classes", {
+                name: newClassData.name,
+                lecturer_id: parseInt(newClassData.lecturer_id)
+            });
+            alert("Tạo lớp học thành công!");
+            setShowCreateClassModal(false);
+            setNewClassData({ name: "", lecturer_id: "" });
+            fetchEntities(); // Tải lại danh sách lớp
+        } catch (err) {
+            console.error("Create class error", err);
+            alert("Lỗi khi tạo lớp học.");
+        } finally {
+            setCreatingClass(false);
+        }
+    };
+
     /**
      * Hàm render nội dung tương ứng với mỗi chức năng quản trị
      */
@@ -452,6 +492,7 @@ export default function Admin() {
                             <table className="table">
                                 <thead>
                                     <tr>
+                                        <th>ID</th>
                                         <th>Tên / Username</th>
                                         <th>Email</th>
                                         <th>Quyền</th>
@@ -462,6 +503,7 @@ export default function Admin() {
                                 <tbody>
                                     {entities.map(u => (
                                         <tr key={u.id}>
+                                            <td><code style={{ fontSize: 13, background: '#f1f5f9', padding: '2px 6px', borderRadius: 4 }}>{u.id}</code></td>
                                             <td>
                                                 <strong>{u.full_name}</strong><br />
                                                 <small style={{ color: '#666' }}>@{u.username}</small>
@@ -521,23 +563,29 @@ export default function Admin() {
                             </button>
                         </div>
                         <div className="card info-box">
-                            <strong>Hướng dẫn:</strong> File Excel cần có các cột: <code>class_id, student_username</code>.
-                            <br /><br />
+                            <strong>Hướng dẫn:</strong> Hệ thống hỗ trợ linh hoạt các cột sau (Tiếng Việt hoặc Tiếng Anh):
+                            <ul style={{ margin: '8px 0', paddingLeft: 20 }}>
+                                <li><strong>Lớp học:</strong> <code>mã lớp</code> (ID) và/hoặc <code>tên lớp</code></li>
+                                <li><strong>Sinh viên:</strong> <code>mã sinh viên</code> (ID) và/hoặc <code>username</code></li>
+                            </ul>
                             <strong>Ví dụ:</strong>
-                            <table style={{ fontSize: 13, marginTop: 8, borderCollapse: 'collapse' }}>
+                            <table style={{ fontSize: 12, marginTop: 8, borderCollapse: 'collapse', width: '100%', border: '1px solid #bae6fd' }}>
                                 <thead>
                                     <tr style={{ background: '#e0f2fe' }}>
-                                        <th style={{ padding: '4px 8px', border: '1px solid #bae6fd' }}>class_id</th>
-                                        <th style={{ padding: '4px 8px', border: '1px solid #bae6fd' }}>student_username</th>
+                                        <th style={{ padding: '4px 8px', border: '1px solid #bae6fd' }}>mã lớp</th>
+                                        <th style={{ padding: '4px 8px', border: '1px solid #bae6fd' }}>tên lớp</th>
+                                        <th style={{ padding: '4px 8px', border: '1px solid #bae6fd' }}>username</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td style={{ padding: '4px 8px', border: '1px solid #bae6fd' }}>1</td>
+                                        <td style={{ padding: '4px 8px', border: '1px solid #bae6fd' }}>3</td>
+                                        <td style={{ padding: '4px 8px', border: '1px solid #bae6fd' }}>CLS002</td>
                                         <td style={{ padding: '4px 8px', border: '1px solid #bae6fd' }}>student1</td>
                                     </tr>
                                     <tr>
-                                        <td style={{ padding: '4px 8px', border: '1px solid #bae6fd' }}>1</td>
+                                        <td style={{ padding: '4px 8px', border: '1px solid #bae6fd' }}></td>
+                                        <td style={{ padding: '4px 8px', border: '1px solid #bae6fd' }}>SE Class 1</td>
                                         <td style={{ padding: '4px 8px', border: '1px solid #bae6fd' }}>student2</td>
                                     </tr>
                                 </tbody>
@@ -582,9 +630,17 @@ export default function Admin() {
                     <div className="tab-pane">
                         <div className="row-between" style={{ marginBottom: 20 }}>
                             <h4>Quản lý Lớp học</h4>
-                            <button className="btn primary" onClick={() => fileInputRef.current.click()} disabled={uploading}>
-                                {uploading ? "Đang xử lý..." : "📤 Nhập Excel"}
-                            </button>
+                            <div style={{ display: 'flex', gap: 10 }}>
+                                <button className="btn primary" onClick={() => {
+                                    fetchLecturers();
+                                    setShowCreateClassModal(true);
+                                }}>
+                                    + Tạo lớp mới
+                                </button>
+                                <button className="btn outline" onClick={() => fileInputRef.current.click()} disabled={uploading}>
+                                    {uploading ? "Đang xử lý..." : "📤 Nhập Excel"}
+                                </button>
+                            </div>
                         </div>
                         {loading ? <p>Đang tải...</p> : (
                             <table className="table">
@@ -700,6 +756,76 @@ export default function Admin() {
         .badge.warning { background: #fef3c7; color: #92400e; }
         .info-box { background: #f0f9ff; border: 1px solid #bae6fd; padding: 12px 16px; font-size: 14px; border-radius: 8px; color: #0369a1; }
       `}</style>
+            {/* Modal tạo lớp học mới */}
+            {showCreateClassModal && (
+                <div className="modal-overlay" onClick={() => setShowCreateClassModal(false)}>
+                    <div className="modal-content" onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3>Tạo lớp học mới</h3>
+                            <button className="close-btn" onClick={() => setShowCreateClassModal(false)}>×</button>
+                        </div>
+                        <form onSubmit={handleCreateClass}>
+                            <div className="form-group">
+                                <label>Tên lớp học</label>
+                                <input
+                                    type="text"
+                                    className="input"
+                                    value={newClassData.name}
+                                    onChange={e => setNewClassData({ ...newClassData, name: e.target.value })}
+                                    placeholder="Ví dụ: Công nghệ phần mềm - K24"
+                                    required
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Giảng viên phụ trách</label>
+                                <select
+                                    className="input"
+                                    value={newClassData.lecturer_id}
+                                    onChange={e => setNewClassData({ ...newClassData, lecturer_id: e.target.value })}
+                                    required
+                                >
+                                    <option value="">-- Chọn giảng viên --</option>
+                                    {lecturers.map(l => (
+                                        <option key={l.id} value={l.id}>
+                                            {l.full_name} (@{l.username})
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="modal-footer">
+                                <button type="button" className="btn outline" onClick={() => setShowCreateClassModal(false)}>Hủy</button>
+                                <button type="submit" className="btn primary" disabled={creatingClass}>
+                                    {creatingClass ? "Đang tạo..." : "Tạo lớp"}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            <style>{`
+                .modal-overlay {
+                    position: fixed;
+                    top: 0; left: 0; right: 0; bottom: 0;
+                    background: rgba(0,0,0,0.5);
+                    display: flex; align-items: center; justify-content: center;
+                    z-index: 1000; backdrop-filter: blur(4px);
+                }
+                .modal-content {
+                    background: white; border-radius: 12px; padding: 24px;
+                    width: 100%; max-width: 450px; box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+                }
+                .modal-header {
+                    display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;
+                }
+                .close-btn {
+                    background: none; border: none; font-size: 24px; cursor: pointer; color: #666;
+                }
+                .form-group { margin-bottom: 16px; }
+                .form-group label { display: block; margin-bottom: 6px; font-weight: 500; }
+                .input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; }
+                .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+            `}</style>
         </Layout>
     );
 }

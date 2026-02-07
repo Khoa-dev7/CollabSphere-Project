@@ -2,7 +2,12 @@ import { useState, useEffect } from "react";
 import Layout from "../components/Layout";
 import api from "../api";
 
+import { useSearchParams } from "react-router-dom";
+
 export default function PeerReview() {
+    const [searchParams] = useSearchParams();
+    const urlTeamId = searchParams.get("teamId");
+
     // --- Khai báo các trạng thái (State) ---
     const [members, setMembers] = useState([]); // Danh sách các thành viên khác trong nhóm (không bao gồm bản thân)
     const [loading, setLoading] = useState(true); // Trạng thái đang tải dữ liệu ban đầu
@@ -14,9 +19,13 @@ export default function PeerReview() {
     useEffect(() => {
         const initReview = async () => {
             try {
-                // 1. Lấy ID nhóm của người dùng hiện tại từ thông tin thống kê cá nhân
-                const statsRes = await api.get("/dashboard/me/stats");
-                const tid = statsRes.data.team_id;
+                let tid = urlTeamId;
+
+                // Nếu không có teamId trên URL, thử lấy team mặc định (logic cũ - fallback)
+                if (!tid) {
+                    const statsRes = await api.get("/dashboard/me/stats");
+                    tid = statsRes.data.team_id;
+                }
 
                 if (!tid) {
                     setLoading(false);
@@ -25,17 +34,36 @@ export default function PeerReview() {
                 setTeamId(tid);
 
                 // 2. Lấy danh sách thành viên trong nhóm
-                const membersRes = await api.get("/workspace/teams/me/members");
+                // Nếu có urlTeamId, dùng API cụ thể của team đó (cần backend hỗ trợ hoặc dùng endpoint chung với tham số)
+                // Hiện tại endpoint /workspace/teams/me/members đã được sửa để nhận team_id (ở bước trước) hoặc ta dùng endpoint cụ thể
+                // Tốt nhất là dùng endpoint: /workspace/teams/{team_id}/members nếu đã có (check routes)
+
+                // Ở các bước trước ta đã có: /workspace/teams/{team_id}/members
+                const endpoint = urlTeamId
+                    ? `/workspace/teams/${urlTeamId}/members`
+                    : "/workspace/teams/me/members";
+
+                const membersRes = await api.get(endpoint);
                 const currentUserId = parseInt(localStorage.getItem("userId") || "0");
 
                 // Lọc bỏ chính người dùng hiện tại khỏi danh sách được đánh giá
                 const others = membersRes.data.filter(m => m.id !== currentUserId);
                 setMembers(others);
 
+                // 3. Lấy danh sách đánh giá cũ của người dùng trong nhóm này
+                const myReviewsRes = await api.get(`/eval/peer-review/me?team_id=${urlTeamId || tid}`);
+                const myReviews = myReviewsRes.data || [];
+
                 // Khởi tạo trạng thái điểm mặc định (10 điểm, không nhận xét) cho mỗi thành viên
+                // Hoặc điền giá trị cũ nếu đã có
                 const initialScores = {};
                 others.forEach(m => {
-                    initialScores[m.id] = { score: 10, comment: "" };
+                    const existing = myReviews.find(r => r.reviewee_id === m.id);
+                    if (existing) {
+                        initialScores[m.id] = { score: existing.score, comment: existing.comment || "" };
+                    } else {
+                        initialScores[m.id] = { score: 10, comment: "" };
+                    }
                 });
                 setScores(initialScores);
             } catch (err) {
@@ -46,7 +74,7 @@ export default function PeerReview() {
         };
 
         initReview();
-    }, []);
+    }, [urlTeamId]);
 
     // Hàm xử lý khi người dùng thay đổi điểm hoặc nhận xét cho một thành viên
     const handleScoreChange = (userId, field, value) => {
@@ -123,8 +151,11 @@ export default function PeerReview() {
                                     <input
                                         type="number"
                                         min="1" max="10"
-                                        value={scores[m.id]?.score || 10}
-                                        onChange={(e) => handleScoreChange(m.id, 'score', e.target.value)}
+                                        value={scores[m.id]?.score === "" ? "" : scores[m.id]?.score}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            handleScoreChange(m.id, 'score', val === "" ? "" : val);
+                                        }}
                                     />
                                 </div>
                                 <div className="field">

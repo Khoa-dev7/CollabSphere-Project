@@ -30,6 +30,7 @@ class TeamMemberEvaluation(BaseModel):
     user_id: int
     full_name: str
     average_score: float
+    scores: List[float] # Danh sách điểm chi tiết
     review_count: int
 
 # Rubric Schemas

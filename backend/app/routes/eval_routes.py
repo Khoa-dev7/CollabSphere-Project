@@ -28,6 +28,15 @@ def submit_peer_review(review_in: PeerReviewCreate, db: Session = Depends(get_db
     verify_team_access_manual(db, current_user.id, review_in.team_id, current_user.role)
     return eval_service.submit_peer_review(db, current_user.id, review_in)
 
+    return eval_service.submit_peer_review(db, current_user.id, review_in)
+
+@router.get("/peer-review/me")
+def get_my_peer_reviews(team_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """
+    API để sinh viên xem lại các đánh giá mình đã gửi cho nhóm.
+    """
+    return eval_service.get_student_peer_reviews(db, current_user.id, team_id)
+
 from app.routes.security_deps import verify_team_access
 
 @router.get("/team/{team_id}/summary", response_model=List[TeamMemberEvaluation], dependencies=[Depends(verify_team_access)])

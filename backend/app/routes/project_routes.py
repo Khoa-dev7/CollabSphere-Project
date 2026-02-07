@@ -25,8 +25,8 @@ def view_project(project_id: int, db: Session = Depends(get_db)):
     return project_service.get_project_by_id(db, project_id)
 
 @router.put("/projects/{project_id}", response_model=ProjectOut, dependencies=[Depends(PermissionChecker(Permissions.APPROVE_PROJECT))])
-def update_project(project_id: int, project_in: ProjectUpdate, db: Session = Depends(get_db)):
-    # Note: Only staff/admin can update projects or creator if pending
+def update_project(project_id: int, project_in: ProjectUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # Lưu ý: Chỉ Staff/Admin mới có quyền cập nhật dự án, hoặc người tạo nếu đang ở trạng thái Pending
     return project_service.update_project(db, project_id, project_in, current_user.id)
 
 @router.delete("/projects/{project_id}", dependencies=[Depends(PermissionChecker(Permissions.APPROVE_PROJECT))])
@@ -36,7 +36,7 @@ def delete_project(project_id: int, db: Session = Depends(get_db)):
 
 @router.post("/projects/generate-milestones")
 def generate_milestones(subject_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    # AI Milestone generation
+    # Sử dụng AI để tạo tự động các mốc thời gian (Milestone)
     return project_service.generate_milestones_ai(db, subject_id, current_user.id)
 
 @router.put("/projects/{project_id}/approve", dependencies=[Depends(PermissionChecker(Permissions.APPROVE_PROJECT))])
@@ -48,29 +48,28 @@ def list_teams(db: Session = Depends(get_db), current_user: User = Depends(get_c
     """
     Lấy danh sách nhóm. 
     - Giảng viên: Thấy các nhóm thuộc lớp mình dạy.
-    - Sinh viên: Thấy các nhóm mình tham gia.
     - Staff/Admin: Thấy toàn bộ nhóm.
     """
-    from app.models.project_models import Team, TeamMember
-    from app.schemas.user_schemas import UserOut
+    from app.models.project_models import TeamMember
     
-    # Get teams based on user role
-    if current_user.role == "Lecturer":
-        # Lecturers see teams from their classes
+    # Lấy danh sách nhóm dựa trên vai trò của người dùng
+    role_lower = current_user.role.lower()
+    if role_lower == "lecturer":
+        # Giảng viên chỉ thấy các nhóm thuộc lớp mình dạy
         from app.models.project_models import Class
         lecturer_classes = db.query(Class).filter(Class.lecturer_id == current_user.id).all()
         class_ids = [c.id for c in lecturer_classes]
         teams = db.query(Team).filter(Team.class_id.in_(class_ids)).all() if class_ids else []
-    elif current_user.role == "Student":
-        # Students see teams they're in
+    elif role_lower == "student":
+        # Sinh viên chỉ thấy các nhóm mình tham gia
         team_members = db.query(TeamMember).filter(TeamMember.user_id == current_user.id).all()
         team_ids = [tm.team_id for tm in team_members]
         teams = db.query(Team).filter(Team.id.in_(team_ids)).all() if team_ids else []
     else:
-        # Staff/Admin see all teams
+        # Staff/Admin có thể thấy toàn bộ các nhóm
         teams = db.query(Team).all()
     
-    # Populate members for each team
+    # Lấy thông tin thành viên cho từng nhóm
     result = []
     for team in teams:
         team_members = db.query(TeamMember).filter(TeamMember.team_id == team.id).all()
@@ -96,7 +95,7 @@ def create_team(team_in: TeamCreate, db: Session = Depends(get_db), current_user
     return project_service.create_team(db, team_in)
 @router.post("/teams/{team_id}/members/{user_id}", response_model=TeamOut)
 async def add_team_member(team_id: int, user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Add a member to a team - only Lecturer of the class or Team Leader can do this"""
+    """Thêm thành viên vào nhóm - Chỉ Giảng viên của lớp hoặc Nhóm trưởng mới có quyền này"""
     from app.models.project_models import Team, Class
     
     team = db.query(Team).filter(Team.id == team_id).first()
@@ -117,7 +116,7 @@ async def add_team_member(team_id: int, user_id: int, db: Session = Depends(get_
         if team.leader_id == current_user.id:
             is_leader = True
             
-    # Staff/Admin also have permission
+    # Staff/Admin cũng có quyền
     is_staff = current_user.role in ["Staff", "Admin", "Head"]
     
     if not (is_lecturer or is_leader or is_staff):
@@ -128,7 +127,7 @@ async def add_team_member(team_id: int, user_id: int, db: Session = Depends(get_
 
 @router.delete("/teams/{team_id}/members/{user_id}")
 async def remove_team_member(team_id: int, user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Remove a member from a team - only Lecturer of the class or Team Leader can do this"""
+    """Xóa thành viên khỏi nhóm - Chỉ Giảng viên của lớp hoặc Nhóm trưởng mới có quyền này"""
     from app.models.project_models import Team, Class
     
     team = db.query(Team).filter(Team.id == team_id).first()
@@ -154,7 +153,7 @@ async def remove_team_member(team_id: int, user_id: int, db: Session = Depends(g
     if not (is_lecturer or is_leader or is_staff):
         raise HTTPException(status_code=403, detail="Bạn không có quyền xóa thành viên khỏi nhóm này")
     
-    # Protection: Leader cannot remove themselves
+    # Bảo vệ: Nhóm trưởng không thể tự xóa chính mình
     if team.leader_id == user_id:
         raise HTTPException(status_code=400, detail="Nhóm trưởng không thể tự rời khỏi nhóm. Vui lòng chuyển quyền nhóm trưởng trước.")
     
@@ -169,7 +168,7 @@ def create_milestone_question(milestone_id: int, question_in: MilestoneQuestionC
 
 @router.post("/{project_id}/assign-to-class/{class_id}", dependencies=[Depends(PermissionChecker(Permissions.ASSIGN_PROJECT_GLOBAL))])
 def assign_to_class(project_id: int, class_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    # Note: Using APPROVE_PROJECT perm as this is a Head/Lecturer action
+    # Lưu ý: Sử dụng quyền APPROVE_PROJECT vì đây là hành động của Trưởng bộ môn/Giảng viên
     return project_service.assign_project_to_class(db, class_id, project_id)
 @router.delete("/teams/{team_id}")
 def delete_team(
@@ -177,7 +176,7 @@ def delete_team(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Delete a team (Lecturer/Admin only)"""
+    """Xóa nhóm (Chỉ Giảng viên/Admin)"""
     if current_user.role not in ["Lecturer", "Admin"]:
         raise HTTPException(status_code=403, detail="Không có quyền xóa nhóm")
     
@@ -187,7 +186,7 @@ def delete_team(
         raise HTTPException(status_code=404, detail="Nhóm không tồn tại")
         
     if current_user.role == "Lecturer":
-        # Ensure lecturer owns the class the team belongs to
+        # Đảm bảo giảng viên sở hữu lớp học mà nhóm này thuộc về
         if team.classroom.lecturer_id != current_user.id:
             raise HTTPException(status_code=403, detail="Bạn không quản lý lớp học của nhóm này")
 

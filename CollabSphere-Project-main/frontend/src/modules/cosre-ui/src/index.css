@@ -1,0 +1,14 @@
+body {
+  margin: 0;
+  background-color: #f5f7fa;
+}
+
+.ant-layout {
+  background: #f5f7fa;
+}
+
+.page-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}

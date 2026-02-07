@@ -132,9 +132,9 @@ export default function Workspace() {
     const [team, setTeam] = useState(null); // Thông tin nhóm hiện tại
     const [tasks, setTasks] = useState([]); // Toàn bộ nhiệm vụ của nhóm
     const [columns, setColumns] = useState({ // Cấu trúc cột Kanban và các nhiệm vụ trong mỗi cột
-        todo: { id: 'todo', title: 'Cần làm', taskIds: [] },
-        doing: { id: 'doing', title: 'Đang làm', taskIds: [] },
-        done: { id: 'done', title: 'Hoàn thành', taskIds: [] },
+        Todo: { id: 'Todo', title: 'Cần làm', taskIds: [] },
+        Doing: { id: 'Doing', title: 'Đang làm', taskIds: [] },
+        Done: { id: 'Done', title: 'Hoàn thành', taskIds: [] },
     });
     const [teamMembers, setTeamMembers] = useState([]); // Thành viên trong nhóm
     const [milestones, setMilestones] = useState([]); // Các mốc quan trọng của dự án
@@ -220,14 +220,15 @@ export default function Workspace() {
     // Hàm cập nhật cấu trúc cột Kanban dựa trên danh sách nhiệm vụ
     const updateColumns = (allTasks) => {
         const newColumns = {
-            todo: { id: 'Todo', title: 'Cần làm', taskIds: [] },
-            doing: { id: 'Doing', title: 'Đang làm', taskIds: [] },
-            done: { id: 'Done', title: 'Hoàn thành', taskIds: [] },
+            Todo: { id: 'Todo', title: 'Cần làm', taskIds: [] },
+            Doing: { id: 'Doing', title: 'Đang làm', taskIds: [] },
+            Done: { id: 'Done', title: 'Hoàn thành', taskIds: [] },
         };
 
         allTasks.sort((a, b) => a.order - b.order).forEach(task => {
-            if (newColumns[task.status.toLowerCase()]) {
-                newColumns[task.status.toLowerCase()].taskIds.push(task.id);
+            const statusKey = task.status; // Giữ nguyên cách viết (Todo, Doing, Done)
+            if (newColumns[statusKey]) {
+                newColumns[statusKey].taskIds.push(task.id);
             }
         });
         setColumns(newColumns);
@@ -349,12 +350,17 @@ export default function Workspace() {
             // Nếu cột thay đổi, cập nhật trạng thái nhiệm vụ lên Server
             if (overContainer) {
                 try {
-                    await api.patch(`/workspace/tasks/${id}/status`, { status: overContainer });
+                    // Cập nhật vị trí mới trong cột (mặc định cho vào cuối nếu chưa có logic sắp xếp chi tiết)
+                    const newOrder = columns[overContainer].taskIds.length;
+
+                    await api.put(`/workspace/tasks/${id}/move`, {
+                        new_status: overContainer,
+                        new_order: newOrder
+                    });
+
                     // Cập nhật lại danh sách nhiệm vụ cục bộ
-                    setTasks(prev => prev.map(t => t.id === id ? { ...t, status: overContainer } : t));
-                    // Sau khi cập nhật trạng thái, cần sắp xếp lại thứ tự trong cột mới
-                    // Để đơn giản, ta có thể gọi lại fetchData hoặc cập nhật lại cột
-                    fetchWorkspaceData(); // Tải lại dữ liệu để đảm bảo đồng bộ và thứ tự chính xác
+                    setTasks(prev => prev.map(t => t.id === id ? { ...t, status: overContainer, order: newOrder } : t));
+                    fetchWorkspaceData(); // Tải lại dữ liệu để đảm bảo đồng bộ
                 } catch (err) {
                     console.error("Failed to update task status", err);
                     fetchWorkspaceData(); // Tải lại dữ liệu nếu có lỗi để đồng bộ
@@ -378,14 +384,12 @@ export default function Workspace() {
                 },
             }));
 
-            // Gửi yêu cầu cập nhật thứ tự lên Backend
+            // Gửi yêu cầu cập nhật thứ tự lên Backend (sử dụng cùng endpoint /move)
             try {
-                const updatedTaskIds = arrayMove(columns[overContainer].taskIds, activeIndex, overIndex);
-                await api.patch(`/workspace/tasks/reorder`, {
-                    status: overContainer,
-                    task_ids: updatedTaskIds
+                await api.put(`/workspace/tasks/${id}/move`, {
+                    new_status: overContainer,
+                    new_order: overIndex
                 });
-                // Sau khi cập nhật thứ tự, cần cập nhật lại danh sách tasks để phản ánh order mới
                 fetchWorkspaceData();
             } catch (err) {
                 console.error("Failed to reorder tasks", err);
@@ -421,8 +425,7 @@ export default function Workspace() {
 
     // Helper: Lọc và sắp xếp nhiệm vụ theo trạng thái
     const getTasksByStatus = (status) => {
-        const columnKey = status.toLowerCase();
-        const taskIdsInColumn = columns[columnKey]?.taskIds || [];
+        const taskIdsInColumn = columns[status]?.taskIds || [];
         return taskIdsInColumn
             .map(id => tasks.find(t => t.id === id))
             .filter(Boolean); // Lọc bỏ các task không tìm thấy

@@ -11,8 +11,8 @@ export const SocketProvider = ({ children }) => {
     const [socket, setSocket] = useState(null);
 
     useEffect(() => {
-        // Port 5000 is where backend is running
-        const newSocket = io('http://localhost:5000', {
+        // Port 8000 is where backend is running
+        const newSocket = io('http://localhost:8000', {
             transports: ['polling', 'websocket'],
             autoConnect: true,
         });

@@ -41,9 +41,9 @@ def upload_file(file: UploadFile):
                 shutil.copyfileobj(file.file, buffer)
             
             # Trả về URL đường dẫn tĩnh của backend
-            # Lưu ý: Port 5000 là mặc định của backend trong project này
+            # Lưu ý: Port 8000 là mặc định của backend trong project này
             # Sử dụng URL tuyệt đối để đảm bảo Frontend có thể truy cập qua link <a>
-            return f"http://localhost:5000/api/static/uploads/{unique_filename}"
+            return f"http://localhost:8000/api/static/uploads/{unique_filename}"
             
     except Exception as e:
         print(f"Lỗi tải lên: {str(e)}")
